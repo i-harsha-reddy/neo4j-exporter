@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1.7
+#
+# Release Dockerfile used by goreleaser.
+#
+# goreleaser builds the binary externally and stages it (plus this file) into
+# a minimal build context. The runtime image just wraps the prebuilt binary.
+# The repo's main Dockerfile (./Dockerfile) is the self-contained build-from-
+# source variant used by `make docker` and CI.
+
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY neo4j-exporter /usr/local/bin/neo4j-exporter
+
+USER nonroot:nonroot
+EXPOSE 9412
+ENTRYPOINT ["/usr/local/bin/neo4j-exporter"]
+CMD ["--config.file=/etc/neo4j-exporter/config.yml"]

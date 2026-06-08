@@ -1,0 +1,113 @@
+# neo4j-exporter — fully annotated example config.
+#
+# Place at /etc/neo4j-exporter/config.yml (or pass --config.file).
+# Reload via SIGHUP or POST /-/reload — atomic; failed reloads keep the prior config.
+
+global:
+  # Module to use when /probe is called without &module=...
+  default_module: default
+
+  # Absolute cap on a probe's wall time. Prometheus' X-Prometheus-Scrape-Timeout-Seconds
+  # header further caps this if smaller.
+  scrape_timeout: 10s
+
+  # Maximum collectors running in parallel per probe. Higher = faster probes,
+  # higher peak memory + connection use.
+  collect_concurrency: 8
+
+  # Defaults applied to every Neo4j driver instance the exporter creates.
+  driver:
+    max_connection_pool_size: 4
+    max_connection_lifetime: 1h
+    connection_acquisition_timeout: 5s
+
+# --- Modules: groups of collectors with shared timeouts. ---
+# Targets pick a module via &module=<name> in the /probe URL.
+
+modules:
+  default:
+    timeout: 8s
+    collectors:
+      server:        true   # up, version, apoc-tier-info — always recommended
+      bolt:          true   # handshake + RTT latency
+      databases:     true   # SHOW DATABASES
+      transactions:  true   # SHOW TRANSACTIONS aggregates
+      indexes:       true   # SHOW INDEXES
+      constraints:   true   # SHOW CONSTRAINTS
+      apoc_kernel:   auto   # APOC Extended; enabled if procedure exists
+      apoc_store:    auto
+      apoc_tx:       auto
+      apoc_ids:      auto
+      apoc_meta:     auto   # APOC Core fallback (apoc.meta.stats)
+      jolokia:       true   # JVM via Jolokia HTTP→JMX bridge
+      settings:      false  # SHOW SETTINGS — opt-in (slow on cold caches)
+    slow_query:
+      enabled: true
+      min_seconds: 5
+      top: 10
+      expose_query_text: false   # Default OFF: PII guard. Hash always emitted.
+      timeout: 5s
+    per_collector_timeout:
+      transactions: 2s
+      apoc_store:   3s
+      jolokia:      2s
+
+  # Cheap "is it alive?" probe — for high-frequency scrapes (e.g. 5s).
+  readonly:
+    timeout: 3s
+    collectors:
+      server:    true
+      bolt:      true
+      databases: true
+    slow_query: { enabled: false }
+
+  # JVM-only probe — useful when scrape interval differs from the default module.
+  jvm_only:
+    timeout: 4s
+    collectors:
+      server:  true
+      jolokia: true
+
+# --- Targets: specific Neo4j instances and their auth. ---
+# Static targets are matched by `address` (or `name`). Service-discovered
+# targets fall through to default_target if not listed.
+
+targets:
+  - name: prod-primary
+    address: neo4j-prod-1:7687
+    module: default
+    bolt:
+      scheme: neo4j+s              # neo4j | bolt | neo4j+s | bolt+s | neo4j+ssc | bolt+ssc
+      username: monitor
+      password_file: /etc/neo4j-exporter/secrets/prod-primary.password
+      database: neo4j
+      tls:
+        ca_file: /etc/neo4j-exporter/tls/ca.pem
+        # cert_file: /etc/neo4j-exporter/tls/client.pem
+        # key_file:  /etc/neo4j-exporter/tls/client.key
+        # server_name: neo4j-prod-1.internal
+        insecure_skip_verify: false
+    jolokia:
+      url: https://neo4j-prod-1:8778/jolokia/
+      auth:
+        username: jolokia
+        password_file: /etc/neo4j-exporter/secrets/jolokia.password
+      tls:
+        ca_file: /etc/neo4j-exporter/tls/jolokia-ca.pem
+
+  - name: prod-replica
+    address: neo4j-prod-2:7687
+    module: default
+    bolt:
+      scheme: neo4j+s
+      username: monitor
+      password_file: /etc/neo4j-exporter/secrets/prod-replica.password
+
+# Fallback for SD-style targets that aren't listed above. Useful with
+# kubernetes_sd_configs / consul_sd_configs / file_sd_configs in Prometheus.
+default_target:
+  module: default
+  bolt:
+    scheme: neo4j
+    username: ${NEO4J_DEFAULT_USER}
+    password: ${NEO4J_DEFAULT_PASSWORD}

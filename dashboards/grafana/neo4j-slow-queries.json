@@ -1,0 +1,157 @@
+{
+  "uid": "neo4j-slow-queries",
+  "title": "Neo4j — Slow Queries",
+  "description": "Live snapshot of long-running queries from the /slow-queries scrape. Snapshot table joins neo4j_slow_query_info (labels) with the per-transaction gauges via group_left.",
+  "tags": ["neo4j", "slow-queries"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "datasource", "type": "datasource", "query": "prometheus",
+       "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}},
+      {"name": "instance", "type": "query",
+       "datasource": {"type": "prometheus", "uid": "${datasource}"},
+       "query": "label_values(neo4j_up, instance)",
+       "multi": true, "includeAll": true,
+       "current": {"selected": true, "text": "All", "value": "$__all"},
+       "refresh": 2, "sort": 1},
+      {"name": "min_seconds", "type": "textbox", "label": "min_seconds",
+       "current": {"selected": false, "text": "1", "value": "1"}}
+    ]
+  },
+  "panels": [
+    {"type": "row", "title": "Stats", "id": 100,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "collapsed": false},
+    {"id": 1, "type": "stat", "title": "Slow queries in flight",
+     "description": "Snapshot count of queries with elapsed > $min_seconds.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+     "targets": [{"refId": "A", "expr": "count(neo4j_slow_query_elapsed_seconds{instance=~\"$instance\"} > $min_seconds) OR vector(0)"}],
+     "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+       {"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 20}]}}},
+     "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 2, "type": "stat", "title": "Max elapsed",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
+     "targets": [{"refId": "A", "expr": "max(neo4j_slow_query_elapsed_seconds{instance=~\"$instance\"}) OR vector(0)"}],
+     "fieldConfig": {"defaults": {"unit": "s"}},
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 3, "type": "stat", "title": "Max wait (lock)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
+     "targets": [{"refId": "A", "expr": "max(neo4j_slow_query_wait_seconds{instance=~\"$instance\"}) OR vector(0)"}],
+     "fieldConfig": {"defaults": {"unit": "s"}},
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 4, "type": "stat", "title": "Allocated by slow queries",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_slow_query_allocated_bytes{instance=~\"$instance\"}) OR vector(0)"}],
+     "fieldConfig": {"defaults": {"unit": "bytes"}},
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"type": "row", "title": "Snapshot table", "id": 101,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}, "collapsed": false},
+    {"id": 5, "type": "table", "title": "Top 50 slow queries (joined elapsed × info × cpu × wait × page_faults × allocated)",
+     "description": "Joined via `* on(instance, transaction_id) group_left(...)`. query_preview only present when target's slow_query.expose_query_text=true.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 12, "w": 24, "x": 0, "y": 6},
+     "targets": [
+       {"refId": "A", "instant": true, "format": "table",
+        "expr": "topk(50, neo4j_slow_query_elapsed_seconds{instance=~\"$instance\"} * on(instance, transaction_id) group_left(database, username, status, query_hash, query_preview) neo4j_slow_query_info{instance=~\"$instance\"})"},
+       {"refId": "B", "instant": true, "format": "table",
+        "expr": "neo4j_slow_query_cpu_seconds{instance=~\"$instance\"}"},
+       {"refId": "C", "instant": true, "format": "table",
+        "expr": "neo4j_slow_query_wait_seconds{instance=~\"$instance\"}"},
+       {"refId": "D", "instant": true, "format": "table",
+        "expr": "neo4j_slow_query_page_faults{instance=~\"$instance\"}"},
+       {"refId": "E", "instant": true, "format": "table",
+        "expr": "neo4j_slow_query_allocated_bytes{instance=~\"$instance\"}"}
+     ],
+     "transformations": [
+       {"id": "merge"},
+       {"id": "organize", "options": {
+         "excludeByName": {"Time": true, "__name__": true, "job": true},
+         "renameByName": {
+           "Value #A": "elapsed (s)",
+           "Value #B": "cpu (s)",
+           "Value #C": "wait (s)",
+           "Value #D": "page faults",
+           "Value #E": "allocated"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {},
+       "overrides": [
+         {"matcher": {"id": "byName", "options": "elapsed (s)"},
+          "properties": [{"id": "unit", "value": "s"}]},
+         {"matcher": {"id": "byName", "options": "cpu (s)"},
+          "properties": [{"id": "unit", "value": "s"}]},
+         {"matcher": {"id": "byName", "options": "wait (s)"},
+          "properties": [{"id": "unit", "value": "s"}]},
+         {"matcher": {"id": "byName", "options": "allocated"},
+          "properties": [{"id": "unit", "value": "bytes"}]}
+       ]
+     },
+     "options": {"sortBy": [{"displayName": "elapsed (s)", "desc": true}]}},
+
+    {"type": "row", "title": "Distributions", "id": 102,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 18}, "collapsed": false},
+    {"id": 6, "type": "heatmap", "title": "Elapsed time distribution",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 8, "x": 0, "y": 19},
+     "targets": [{"refId": "A", "expr": "neo4j_slow_query_elapsed_seconds{instance=~\"$instance\"}"}],
+     "fieldConfig": {"defaults": {"unit": "s"}}},
+    {"id": 7, "type": "timeseries", "title": "CPU vs wait time per slow query",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 8, "x": 8, "y": 19},
+     "targets": [
+       {"refId": "A", "expr": "max by (transaction_id) (neo4j_slow_query_cpu_seconds{instance=~\"$instance\"})", "legendFormat": "cpu {{transaction_id}}"},
+       {"refId": "B", "expr": "max by (transaction_id) (neo4j_slow_query_wait_seconds{instance=~\"$instance\"})", "legendFormat": "wait {{transaction_id}}"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "s"}}},
+    {"id": 8, "type": "timeseries", "title": "Page faults per slow query (top 10)",
+     "description": "Per-tx counter, NOT a global page-cache stat (Enterprise-only).",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 8, "x": 16, "y": 19},
+     "targets": [{"refId": "A", "expr": "topk(10, neo4j_slow_query_page_faults{instance=~\"$instance\"})", "legendFormat": "{{transaction_id}}"}]},
+
+    {"type": "row", "title": "Hotspots", "id": 103,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 27}, "collapsed": false},
+    {"id": 9, "type": "table", "title": "Top users by total elapsed (snapshot)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+     "targets": [
+       {"refId": "A", "instant": true, "format": "table",
+        "expr": "topk(10, sum by (username) (neo4j_slow_query_elapsed_seconds{instance=~\"$instance\"} * on(instance, transaction_id) group_left(username) neo4j_slow_query_info{instance=~\"$instance\"}))"}
+     ],
+     "transformations": [
+       {"id": "organize", "options": {
+         "excludeByName": {"Time": true, "__name__": true, "job": true},
+         "renameByName": {"Value": "total elapsed (s)"}}}
+     ],
+     "fieldConfig": {"defaults": {"unit": "s"}}},
+    {"id": 10, "type": "table", "title": "Top query_hash by frequency (snapshot)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+     "targets": [
+       {"refId": "A", "instant": true, "format": "table",
+        "expr": "topk(10, count by (query_hash) (neo4j_slow_query_info{instance=~\"$instance\"}))"}
+     ],
+     "transformations": [
+       {"id": "organize", "options": {
+         "excludeByName": {"Time": true, "__name__": true, "job": true},
+         "renameByName": {"Value": "count"}}}
+     ]},
+
+    {"type": "row", "title": "Backlog", "id": 104,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 36}, "collapsed": false},
+    {"id": 11, "type": "timeseries", "title": "Slow query backlog (count > 10s elapsed)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 24, "x": 0, "y": 37},
+     "targets": [{"refId": "A", "expr": "count by (instance, database) (neo4j_slow_query_elapsed_seconds{instance=~\"$instance\"} > 10)", "legendFormat": "{{instance}}/{{database}}"}],
+     "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+       {"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 20}]}}}}
+  ]
+}

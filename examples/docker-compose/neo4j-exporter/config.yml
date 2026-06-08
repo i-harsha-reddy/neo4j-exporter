@@ -1,0 +1,52 @@
+global:
+  default_module: default
+  scrape_timeout: 10s
+
+modules:
+  default:
+    timeout: 8s
+    collectors:
+      server: true
+      bolt: true
+      databases: true
+      transactions: true
+      indexes: true
+      constraints: true
+      apoc_kernel: auto
+      apoc_store: auto
+      apoc_tx: auto
+      apoc_ids: auto
+      apoc_meta: auto
+      jolokia: true
+    slow_query:
+      enabled: true
+      min_seconds: 0.05  # demo only — show very brief queries too
+      top: 10
+      expose_query_text: true   # demo only; never enable without PII review
+    per_collector_timeout:
+      transactions: 2s
+      apoc_store: 3s
+      jolokia: 2s
+
+targets:
+  - name: neo4j-a
+    address: neo4j-a:7687
+    module: default
+    bolt:
+      scheme: neo4j
+      username: neo4j
+      password: dev_password_change_me
+      database: neo4j
+    jolokia:
+      url: http://neo4j-a:8778/jolokia/
+
+  - name: neo4j-b
+    address: neo4j-b:7687
+    module: default
+    bolt:
+      scheme: neo4j
+      username: neo4j
+      password: dev_password_change_me
+      database: neo4j
+    jolokia:
+      url: http://neo4j-b:8778/jolokia/

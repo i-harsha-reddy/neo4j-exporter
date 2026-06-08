@@ -1,0 +1,24 @@
+name: e2e
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Force all JS actions to run on Node.js 24 (interim until each action upstream
+# bumps its action.yml runs.using). See:
+# https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  compose-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: docker compose up + smoke test
+        run: bash scripts/e2e.sh
+      - name: dump compose logs on failure
+        if: failure()
+        run: ( cd examples/docker-compose && docker compose logs --no-color )

@@ -1,0 +1,46 @@
+# values-network-policy.yaml — restrict network access to the exporter.
+#
+# Allows only Prometheus (in the `monitoring` namespace) to scrape /probe, /metrics,
+# and /slow-queries. Egress is restricted to:
+#   - DNS (TCP/UDP 53) to kube-dns
+#   - Bolt (TCP 7687) to the Neo4j namespace
+#   - Jolokia (TCP 8778) to the Neo4j namespace
+#
+# Adjust the namespace selectors for your environment. Empty `ingress.from` means
+# nothing can reach the exporter — that's almost certainly not what you want.
+#
+# Install (combine with the credentials values file of your choice):
+#   helm install neo4j-exporter oci://ghcr.io/i-harsha-reddy/charts/neo4j-exporter \
+#     --version 0.1.0 -n monitoring \
+#     -f examples/kubernetes/values/values-existing-secret.yaml \
+#     -f examples/kubernetes/values/values-network-policy.yaml
+
+networkPolicy:
+  enabled: true
+  ingress:
+    from:
+      # Prometheus pods in the monitoring namespace.
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: prometheus
+  egress:
+    # DNS — required for resolving Neo4j Service names.
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # Bolt + Jolokia to the namespace where Neo4j runs. Tighten by adding podSelector.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+      ports:
+        - { protocol: TCP, port: 7687 }
+        - { protocol: TCP, port: 8778 }

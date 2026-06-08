@@ -1,0 +1,246 @@
+# -- String to override the chart name in resource names. Defaults to .Chart.Name.
+nameOverride: ""
+# -- String to fully override the default fully-qualified resource name.
+fullnameOverride: ""
+
+# -- Extra labels applied to every rendered resource.
+commonLabels: {}
+# -- Extra annotations applied to every rendered resource.
+commonAnnotations: {}
+
+image:
+  # -- Container image repository.
+  repository: ghcr.io/i-harsha-reddy/neo4j-exporter
+  # -- Image tag. Defaults to .Chart.AppVersion when empty.
+  tag: ""
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+  # -- imagePullSecrets to attach to the pod spec, e.g. `[ {name: my-regcred} ]`.
+  pullSecrets: []
+
+# -- Number of exporter replicas. The exporter is stateless; running >1 is safe but
+# results in duplicate scrapes (each Prometheus scrape hits one replica via the Service).
+replicaCount: 1
+# -- Number of old ReplicaSets to retain.
+revisionHistoryLimit: 5
+
+# -- Strategy for the Deployment. Default is RollingUpdate with maxSurge 1 / maxUnavailable 0.
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+serviceAccount:
+  # -- Whether to create a ServiceAccount for the exporter.
+  create: true
+  # -- Override the ServiceAccount name. Defaults to the fullname.
+  name: ""
+  # -- Annotations on the ServiceAccount (e.g. for IRSA).
+  annotations: {}
+  # -- Whether to automount the ServiceAccount token. The exporter does not call the
+  # Kubernetes API; default is false (more secure).
+  automountServiceAccountToken: false
+
+# -- Pod-level securityContext. Mirrors the distroless image's nonroot UID/GID.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level securityContext.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  capabilities:
+    drop: [ALL]
+
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- Service port. The exporter listens on this port; do not change without also
+  # updating `extraArgs` to pass --web.listen-address=:<port>.
+  port: 9412
+  # -- Service annotations.
+  annotations: {}
+  # -- Extra labels on the Service. The selector labels are added automatically.
+  labels: {}
+
+probes:
+  liveness:
+    # -- HTTP path for the liveness probe. Always /health.
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    # -- HTTP path for the readiness probe. Always /ready.
+    path: /ready
+    initialDelaySeconds: 2
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+# -- Resource requests and limits. Sized for a steady-state CE fleet; scale up if you
+# scrape many Neo4j hosts or run very short scrape intervals.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# -- nodeSelector for the pod.
+nodeSelector: {}
+# -- tolerations for the pod.
+tolerations: []
+# -- affinity rules for the pod (e.g. podAntiAffinity for spreading replicas).
+affinity: {}
+# -- topologySpreadConstraints for the pod.
+topologySpreadConstraints: []
+# -- priorityClassName for the pod.
+priorityClassName: ""
+
+# PodDisruptionBudget. Auto-enabled when replicaCount > 1 OR autoscaling is on,
+# unless `enabled` is explicitly set to false.
+podDisruptionBudget:
+  # -- Force-enable the PDB. When null, the chart auto-enables it for HA setups.
+  enabled: null
+  # -- minAvailable for the PDB. Mutually exclusive with maxUnavailable.
+  minAvailable: 1
+  # -- maxUnavailable for the PDB. Mutually exclusive with minAvailable.
+  maxUnavailable: ""
+
+autoscaling:
+  # -- Enable HorizontalPodAutoscaler.
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  # -- Target average CPU utilization (% of requests). Set to null to disable CPU scaling.
+  targetCPUUtilizationPercentage: 80
+  # -- Target average memory utilization (% of requests). Set to null to disable memory scaling.
+  targetMemoryUtilizationPercentage: null
+  # -- HPA scaling behavior (HPA v2). Empty means use the cluster defaults.
+  behavior: {}
+
+networkPolicy:
+  # -- Whether to create a NetworkPolicy for the exporter pod.
+  enabled: false
+  # -- ingress.from selectors that may scrape /probe, /metrics, /slow-queries.
+  # Each item is a NetworkPolicyPeer. Empty list means no inbound traffic is allowed,
+  # which will break scraping — set this when enabling NetworkPolicy.
+  ingress:
+    from: []
+  # -- Egress rules. Empty means use the default policy (allow all). To restrict,
+  # set explicit rules covering DNS (UDP/TCP 53), Bolt (7687), and Jolokia (8778).
+  egress: []
+
+# -- Log level: debug, info, warn, error.
+logLevel: info
+
+# -- Extra command-line arguments passed to the exporter.
+extraArgs: []
+# -- Extra environment variables for the container, e.g. `[{name: FOO, value: bar}]`.
+extraEnv: []
+# -- Extra volumes attached to the pod.
+extraVolumes: []
+# -- Extra volume mounts on the exporter container.
+extraVolumeMounts: []
+
+# -- Extra annotations on the pod.
+podAnnotations: {}
+# -- Extra labels on the pod.
+podLabels: {}
+
+# -- Roll the Deployment when the rendered ConfigMap or Secret changes (via checksum
+# annotations). Set to false if you prefer to use SIGHUP / POST /-/reload manually.
+configReloadOnChange: true
+
+# Authentication for Bolt and Jolokia.
+#
+# Two ways to provide credentials:
+#   1. existingSecret — set `auth.existingSecret: my-secret`. The chart will not
+#      render a Secret; the pod mounts the named Secret. The Secret must contain
+#      keys named by `auth.passwordKey` and `auth.jolokiaPasswordKey`.
+#   2. inline — set `auth.password` and `auth.jolokiaPassword`. The chart renders
+#      a Secret named `<fullname>` containing those values.
+#
+# `auth.username` and `auth.jolokiaUsername` are NOT secrets and are passed via env
+# vars / config substitution. They are always inline in values.
+auth:
+  # -- Reference an existing Secret instead of letting the chart create one. Takes
+  # precedence over `password` / `jolokiaPassword`.
+  existingSecret: ""
+  # -- Key in the Secret containing the Bolt password.
+  passwordKey: password
+  # -- Key in the Secret containing the Jolokia password.
+  jolokiaPasswordKey: jolokia-password
+  # -- Bolt username (Neo4j role: ideally a read-only monitoring role).
+  username: monitor
+  # -- Bolt password (only used when existingSecret is empty).
+  password: ""
+  # -- Jolokia HTTP basic auth username.
+  jolokiaUsername: jolokia
+  # -- Jolokia HTTP basic auth password (only used when existingSecret is empty).
+  jolokiaPassword: ""
+
+# -- Exporter configuration. Rendered verbatim into a ConfigMap as
+# /etc/neo4j-exporter/config.yml. Schema must match internal/config/config.go.
+# Embedded ${HOST} and ${NEO4J_USER} placeholders are interpreted by the exporter
+# at runtime, NOT by Helm; they pass through templating untouched.
+config:
+  global:
+    default_module: default
+    scrape_timeout: 10s
+
+  modules:
+    default:
+      timeout: 8s
+      collectors:
+        server: true
+        bolt: true
+        databases: true
+        transactions: true
+        indexes: true
+        constraints: true
+        apoc_kernel: auto
+        apoc_store: auto
+        apoc_tx: auto
+        apoc_ids: auto
+        apoc_meta: auto
+        jolokia: true
+      slow_query:
+        enabled: true
+        min_seconds: 5
+        top: 10
+        # Set to true ONLY if you accept that Cypher query text may include PII as literals.
+        expose_query_text: false
+
+  # SD-discovered targets fall through to default_target.
+  default_target:
+    module: default
+    bolt:
+      scheme: neo4j
+      username: ${NEO4J_USER}
+      password_file: /etc/neo4j-exporter/secrets/password
+    jolokia:
+      url: http://${HOST}:8778/jolokia/
+      auth:
+        username: jolokia
+        password_file: /etc/neo4j-exporter/secrets/jolokia-password
+
+  # Static targets. Usually empty when using Prometheus service discovery.
+  # Example:
+  #   targets:
+  #     - name: prod-1
+  #       address: neo4j-prod-1.databases.svc:7687
+  #       module: default
+  targets: []

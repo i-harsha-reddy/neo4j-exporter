@@ -1,0 +1,41 @@
+apiVersion: v2
+name: neo4j-exporter
+description: |
+  Prometheus exporter for Neo4j Community Edition 5.x / 2025.x.
+  Combines Cypher SHOW commands, APOC monitor procedures, and JVM-via-Jolokia
+  to fill the gap left by Neo4j CE having no native Prometheus endpoint.
+  Multi-target probe pattern (one exporter, many Neo4j instances).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.25.0-0"
+
+home: https://github.com/i-harsha-reddy/neo4j-exporter
+sources:
+  - https://github.com/i-harsha-reddy/neo4j-exporter
+icon: https://raw.githubusercontent.com/i-harsha-reddy/neo4j-exporter/main/docs/logo.png
+
+keywords:
+  - neo4j
+  - prometheus
+  - exporter
+  - monitoring
+  - graph-database
+  - jolokia
+  - apoc
+
+maintainers:
+  - name: Harsha Reddy
+    email: mailme.sha97@gmail.com
+    url: https://github.com/i-harsha-reddy
+
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://github.com/i-harsha-reddy/neo4j-exporter/tree/main/docs
+    - name: Container image
+      url: https://github.com/i-harsha-reddy/neo4j-exporter/pkgs/container/neo4j-exporter
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial release of the Helm chart

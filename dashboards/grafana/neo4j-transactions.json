@@ -1,0 +1,175 @@
+{
+  "uid": "neo4j-transactions",
+  "title": "Neo4j — Transactions",
+  "description": "Live transactions, slow queries, page hits/faults, lock contention, CPU/wait/idle decomposition.",
+  "tags": ["neo4j", "transactions"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "datasource", "type": "datasource", "query": "prometheus",
+       "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}},
+      {"name": "instance", "type": "query",
+       "datasource": {"type": "prometheus", "uid": "${datasource}"},
+       "query": "label_values(neo4j_up, instance)",
+       "multi": true, "includeAll": true,
+       "current": {"selected": true, "text": "All", "value": "$__all"},
+       "refresh": 2, "sort": 1},
+      {"name": "database", "type": "query",
+       "datasource": {"type": "prometheus", "uid": "${datasource}"},
+       "query": "label_values(neo4j_transactions_active{instance=~\"$instance\"}, database)",
+       "multi": true, "includeAll": true,
+       "current": {"selected": true, "text": "All", "value": "$__all"},
+       "refresh": 2, "sort": 1}
+    ]
+  },
+  "panels": [
+    {"type": "row", "title": "Snapshot", "id": 100,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "collapsed": false},
+    {"id": 1, "type": "stat", "title": "Currently active",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_transactions_active{instance=~\"$instance\",database=~\"$database\"})"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 2, "type": "stat", "title": "Longest active",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 4, "x": 4, "y": 1},
+     "targets": [{"refId": "A", "expr": "max(neo4j_transactions_longest_active_seconds{instance=~\"$instance\",database=~\"$database\"})"}],
+     "fieldConfig": {"defaults": {"unit": "s",
+       "thresholds": {"mode": "absolute", "steps": [
+         {"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 300}]}}},
+     "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 3, "type": "stat", "title": "Peak concurrent",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1},
+     "description": "From apoc.monitor.tx — resets on Neo4j restart.",
+     "targets": [{"refId": "A", "expr": "max(neo4j_transactions_peak_concurrent{instance=~\"$instance\",database=~\"$database\"})"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 4, "type": "stat", "title": "Active locks held",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_transactions_active_lock_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 5, "type": "stat", "title": "Last txid (max across DBs)",
+     "description": "Source: neo4j_database_last_committed_txid (from databases collector — always-on, doesn't require APOC Extended).",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 4, "x": 16, "y": 1},
+     "targets": [{"refId": "A", "expr": "max(neo4j_database_last_committed_txid{instance=~\"$instance\",database=~\"$database\"})"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 6, "type": "stat", "title": "Commit rate (5m)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 4, "x": 20, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(rate(neo4j_transactions_committed_count{instance=~\"$instance\",database=~\"$database\"}[5m]))"}],
+     "fieldConfig": {"defaults": {"unit": "ops"}},
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"type": "row", "title": "Throughput", "id": 101,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}, "collapsed": false},
+    {"id": 7, "type": "timeseries", "title": "Commits / rollbacks per second",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+     "targets": [
+       {"refId": "A", "expr": "sum by (instance, database) (rate(neo4j_transactions_committed_count{instance=~\"$instance\",database=~\"$database\"}[5m]))", "legendFormat": "committed {{instance}}/{{database}}"},
+       {"refId": "B", "expr": "sum by (instance, database) (rate(neo4j_transactions_rolled_back_count{instance=~\"$instance\",database=~\"$database\"}[$__rate_interval]))", "legendFormat": "rolled back {{instance}}/{{database}}"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "ops"}}},
+    {"id": 8, "type": "timeseries", "title": "Rollback ratio",
+     "description": "rollbacks / (commits + rollbacks). >5% sustained suggests deadlocks or constraint contention.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+     "targets": [{"refId": "A", "expr": "(rate(neo4j_transactions_rolled_back_count{instance=~\"$instance\",database=~\"$database\"}[5m]) / clamp_min(rate(neo4j_transactions_committed_count{instance=~\"$instance\",database=~\"$database\"}[5m]) + rate(neo4j_transactions_rolled_back_count{instance=~\"$instance\",database=~\"$database\"}[5m]), 0.001))", "legendFormat": "{{instance}}/{{database}}"}],
+     "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1,
+       "thresholds": {"mode": "absolute", "steps": [
+         {"color": "green", "value": null}, {"color": "yellow", "value": 0.05}, {"color": "red", "value": 0.1}]}}}},
+
+    {"type": "row", "title": "Concurrency & age", "id": 102,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14}, "collapsed": false},
+    {"id": 9, "type": "timeseries", "title": "Active by status",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+     "targets": [{"refId": "A", "expr": "sum by (status) (neo4j_transactions_active{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "{{status}}"}],
+     "fieldConfig": {"defaults": {"custom": {"stacking": {"mode": "normal"}}}}},
+    {"id": 10, "type": "timeseries", "title": "Longest active (seconds)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+     "targets": [{"refId": "A", "expr": "neo4j_transactions_longest_active_seconds{instance=~\"$instance\",database=~\"$database\"}", "legendFormat": "{{instance}}/{{database}}"}],
+     "fieldConfig": {"defaults": {"unit": "s",
+       "thresholds": {"mode": "absolute", "steps": [
+         {"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 300}]}}}},
+
+    {"type": "row", "title": "Time decomposition (sums across active txns)", "id": 103,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23}, "collapsed": false},
+    {"id": 11, "type": "timeseries", "title": "Active CPU vs wait (lock) vs idle",
+     "description": "Sum of cpuTime/waitTime/idleTime across currently active transactions. Wait spike = lock contention; idle spike = client/driver-side slowness.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+     "targets": [
+       {"refId": "A", "expr": "sum by (instance, database) (neo4j_transactions_active_cpu_seconds{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "cpu {{instance}}/{{database}}"},
+       {"refId": "B", "expr": "sum by (instance, database) (neo4j_transactions_active_wait_seconds{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "wait (lock) {{instance}}/{{database}}"},
+       {"refId": "C", "expr": "sum by (instance, database) (neo4j_transactions_active_idle_seconds{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "idle {{instance}}/{{database}}"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "s"}}},
+
+    {"type": "row", "title": "I/O and memory of active txns", "id": 104,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32}, "collapsed": false},
+    {"id": 12, "type": "timeseries", "title": "Page hits / faults (active txns sum)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+     "description": "Sum across currently-active transactions. Per-tx counters; NOT a global cache hit ratio (Enterprise-only).",
+     "targets": [
+       {"refId": "A", "expr": "neo4j_transactions_active_page_hits{instance=~\"$instance\",database=~\"$database\"}", "legendFormat": "hits {{instance}}/{{database}}"},
+       {"refId": "B", "expr": "neo4j_transactions_active_page_faults{instance=~\"$instance\",database=~\"$database\"}", "legendFormat": "faults {{instance}}/{{database}}"}
+     ]},
+    {"id": 13, "type": "timeseries", "title": "Memory across active txns",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 12, "y": 33},
+     "targets": [
+       {"refId": "A", "expr": "neo4j_transactions_active_estimated_heap_bytes{instance=~\"$instance\",database=~\"$database\"}", "legendFormat": "heap {{instance}}/{{database}}"},
+       {"refId": "B", "expr": "neo4j_transactions_active_allocated_direct_bytes{instance=~\"$instance\",database=~\"$database\"}", "legendFormat": "direct {{instance}}/{{database}}"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "bytes"}}},
+
+    {"type": "row", "title": "APOC tx accounting", "id": 105,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 41}, "collapsed": false},
+    {"id": 14, "type": "timeseries", "title": "Currently open / opened rate",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 12, "x": 0, "y": 42},
+     "targets": [
+       {"refId": "A", "expr": "neo4j_transactions_currently_open{instance=~\"$instance\",database=~\"$database\"}", "legendFormat": "open {{instance}}/{{database}}"},
+       {"refId": "B", "expr": "rate(neo4j_transactions_opened_count{instance=~\"$instance\",database=~\"$database\"}[$__rate_interval])", "legendFormat": "opened/s {{instance}}/{{database}}"}
+     ]},
+    {"id": 15, "type": "timeseries", "title": "Last txid drift across instances (per-database)",
+     "description": "max - min last_committed_txid across instances per database. Diagnostic for write-lag in non-clustered fleets.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 12, "x": 12, "y": 42},
+     "targets": [{"refId": "A", "expr": "max by (database) (neo4j_database_last_committed_txid{instance=~\"$instance\",database=~\"$database\"}) - min by (database) (neo4j_database_last_committed_txid{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "{{database}}"}]},
+
+    {"type": "row", "title": "Slow query callout", "id": 106,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 49}, "collapsed": false},
+    {"id": 16, "type": "table", "title": "Top 10 slow queries — click to drill into the slow-queries dashboard",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 24, "x": 0, "y": 50},
+     "description": "Joined snapshot from /slow-queries. Click query_hash to filter the slow-queries dashboard.",
+     "targets": [
+       {"refId": "A", "instant": true, "format": "table",
+        "expr": "topk(10, neo4j_slow_query_elapsed_seconds{instance=~\"$instance\"} * on(instance, transaction_id) group_left(database, username, status, query_hash) neo4j_slow_query_info{instance=~\"$instance\"})"}
+     ],
+     "transformations": [
+       {"id": "organize", "options": {
+         "excludeByName": {"Time": true, "__name__": true, "job": true},
+         "renameByName": {"Value": "elapsed (s)"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {"unit": "s"},
+       "overrides": [
+         {"matcher": {"id": "byName", "options": "query_hash"},
+          "properties": [{"id": "links", "value": [
+            {"title": "Open slow-queries dashboard for this query_hash",
+             "url": "/d/neo4j-slow-queries?var-instance=${__data.fields.instance}", "targetBlank": false}]}]}
+       ]
+     }}
+  ]
+}

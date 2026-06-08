@@ -1,0 +1,13 @@
+# values-basic.yaml — minimum-viable install, single replica, inline credentials.
+#
+# Use for smoke tests and demos. For production, prefer values-existing-secret.yaml.
+#
+# Install:
+#   helm install neo4j-exporter oci://ghcr.io/i-harsha-reddy/charts/neo4j-exporter \
+#     --version 0.1.0 -n monitoring --create-namespace \
+#     -f examples/kubernetes/values/values-basic.yaml
+
+auth:
+  username: monitor
+  password: change-me-bolt
+  jolokiaPassword: change-me-jolokia

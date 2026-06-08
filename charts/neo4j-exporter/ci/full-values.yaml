@@ -1,0 +1,143 @@
+# ci/full-values.yaml — exercises every gated feature so chart-testing catches
+# template regressions.
+replicaCount: 2
+
+image:
+  pullPolicy: Always
+  pullSecrets:
+    - name: my-regcred
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+podLabels:
+  team: data-platform
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits:   { cpu: 1000m, memory: 512Mi }
+
+nodeSelector:
+  kubernetes.io/os: linux
+
+tolerations:
+  - key: monitoring
+    operator: Exists
+    effect: NoSchedule
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: neo4j-exporter
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: neo4j-exporter
+
+priorityClassName: system-cluster-critical
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 75
+  targetMemoryUtilizationPercentage: 80
+
+networkPolicy:
+  enabled: true
+  ingress:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: prometheus
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 7687
+        - protocol: TCP
+          port: 8778
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+# Use existingSecret to verify the chart-rendered Secret is suppressed.
+auth:
+  existingSecret: pre-created-creds
+  passwordKey: bolt-password
+  jolokiaPasswordKey: jolokia-password
+  username: monitor
+
+extraArgs:
+  - --web.read-timeout=15s
+extraEnv:
+  - name: GOMAXPROCS
+    value: "2"
+
+config:
+  global:
+    default_module: default
+    scrape_timeout: 15s
+  modules:
+    default:
+      timeout: 12s
+      collectors:
+        server: true
+        bolt: true
+        databases: true
+        transactions: true
+        indexes: true
+        constraints: true
+        apoc_kernel: auto
+        apoc_store: auto
+        apoc_tx: auto
+        apoc_ids: auto
+        apoc_meta: auto
+        jolokia: true
+      slow_query: { enabled: true, min_seconds: 5, top: 10, expose_query_text: false }
+  default_target:
+    module: default
+    bolt:
+      scheme: neo4j
+      username: ${NEO4J_USER}
+      password_file: /etc/neo4j-exporter/secrets/password
+    jolokia:
+      url: http://${HOST}:8778/jolokia/
+      auth:
+        username: jolokia
+        password_file: /etc/neo4j-exporter/secrets/jolokia-password
+  targets:
+    - name: prod-1
+      address: neo4j-prod-1.databases.svc:7687
+      module: default
+    - name: prod-2
+      address: neo4j-prod-2.databases.svc:7687
+      module: default
+
+commonLabels:
+  environment: production
+commonAnnotations:
+  managed-by: helm

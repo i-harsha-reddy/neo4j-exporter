@@ -1,0 +1,49 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  - job_name: neo4j-exporter-self
+    static_configs:
+      - targets: [neo4j-exporter:9412]
+
+  - job_name: neo4j
+    metrics_path: /probe
+    params:
+      module: [default]
+    static_configs:
+      - targets:
+          - neo4j-a:7687
+          - neo4j-b:7687
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: neo4j-exporter:9412
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  - job_name: neo4j-slow-queries
+    metrics_path: /slow-queries
+    params:
+      format: [openmetrics_info]
+      top: ["10"]
+    static_configs:
+      - targets:
+          - neo4j-a:7687
+          - neo4j-b:7687
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: neo4j-exporter:9412
+    scrape_interval: 30s
+    scrape_timeout: 8s

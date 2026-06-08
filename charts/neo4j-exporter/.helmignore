@@ -1,0 +1,26 @@
+# Patterns to ignore when building packages.
+# Mirrors `helm create` defaults plus chart-specific entries.
+.DS_Store
+.git/
+.gitignore
+.bzr/
+.bzrignore
+.hg/
+.hgignore
+.svn/
+*.swp
+*.bak
+*.tmp
+*.orig
+*~
+.project
+.idea/
+*.tmproj
+.vscode/
+
+# Chart-development scratch
+ci/
+README.md.gotmpl
+
+# OS / editor cruft
+Thumbs.db

@@ -1,0 +1,5 @@
+# ci/minimal-values.yaml — exercises the default install path.
+# Used by `ct install` and `helm template ... -f ci/minimal-values.yaml`.
+auth:
+  password: "ci-test-password"
+  jolokiaPassword: "ci-test-jolokia-password"

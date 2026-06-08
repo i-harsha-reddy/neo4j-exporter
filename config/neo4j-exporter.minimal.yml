@@ -1,0 +1,14 @@
+modules:
+  default:
+    timeout: 8s
+    collectors: { server: true, bolt: true, databases: true, transactions: true,
+                  indexes: true, constraints: true,
+                  apoc_kernel: auto, apoc_store: auto, apoc_tx: auto, apoc_ids: auto, apoc_meta: auto,
+                  jolokia: true }
+    slow_query: { enabled: true }
+
+targets:
+  - name: local
+    address: localhost:7687
+    bolt: { scheme: neo4j, username: neo4j, password: neo4j_password }
+    jolokia: { url: http://localhost:8778/jolokia/ }

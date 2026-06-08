@@ -1,0 +1,97 @@
+name: Bug report
+description: Report a defect in the exporter, dashboards, or chart
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+        **Security-sensitive issues** (auth bypass, credential exposure, etc.): do NOT file here — email
+        `mailme.sha97@gmail.com` with subject `SECURITY: neo4j-exporter`. See `SECURITY.md`.
+
+  - type: input
+    id: exporter-version
+    attributes:
+      label: Exporter version
+      description: From `/metrics` → `neo4j_exporter_build_info` or the binary's `--version` flag.
+      placeholder: e.g. 0.1.0 or `0.0.1-next-<sha>`
+    validations:
+      required: true
+
+  - type: input
+    id: neo4j-version
+    attributes:
+      label: Neo4j version
+      description: From `SHOW DATABASES` or the exporter's `neo4j_neo4j_version_info` metric.
+      placeholder: e.g. 5.24.1 community
+    validations:
+      required: true
+
+  - type: dropdown
+    id: apoc-tier
+    attributes:
+      label: APOC tier
+      description: From `neo4j_apoc_extended_available`.
+      options:
+        - APOC Core only
+        - APOC Core + Extended
+        - No APOC
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - Helm chart
+        - Raw Kubernetes manifests
+        - Docker (compose / standalone)
+        - Bare binary / systemd
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you observe? What did you expect?
+      placeholder: |
+        Observed: …
+        Expected: …
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps to reproduce. Config snippets welcome (redact secrets).
+      render: bash
+    validations:
+      required: true
+
+  - type: textarea
+    id: probe-output
+    attributes:
+      label: /probe output
+      description: Output of `curl -s 'http://<exporter>:9412/probe?target=<neo4j>:7687&module=default'` — truncate / sanitize as needed.
+      render: text
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant exporter logs
+      description: Exporter stderr at `--log.level=debug` if you can. Redact credentials.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I checked `docs/COMPATIBILITY.md` and confirmed the missing metric isn't intentionally absent (Enterprise-only).
+        - label: I searched existing issues / discussions for duplicates.

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: mailto:mailme.sha97@gmail.com
+    about: Report security-sensitive issues privately by email. Do NOT open a public issue. See SECURITY.md.
+  - name: Question or discussion
+    url: https://github.com/i-harsha-reddy/neo4j-exporter/discussions
+    about: Open-ended questions, design discussions, or "how do I…" prompts belong in Discussions, not Issues.

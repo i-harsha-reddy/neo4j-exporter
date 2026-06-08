@@ -1,0 +1,177 @@
+name: chart-test
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+      - 'examples/kubernetes/**'
+      - '.github/workflows/chart-test.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'charts/**'
+      - 'examples/kubernetes/**'
+      - '.github/workflows/chart-test.yml'
+
+# Force all JS actions to run on Node.js 24 (interim until each action upstream
+# bumps its action.yml runs.using). See:
+# https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  lint-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.1.3
+
+      - name: helm lint (ci/minimal)
+        run: helm lint charts/neo4j-exporter -f charts/neo4j-exporter/ci/minimal-values.yaml
+      - name: helm lint (ci/full)
+        run: helm lint charts/neo4j-exporter -f charts/neo4j-exporter/ci/full-values.yaml
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL -o /tmp/kubeconform.tgz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kubeconform.tgz -C /usr/local/bin kubeconform
+
+      - name: Render and validate (ci/minimal)
+        run: |
+          helm template foo charts/neo4j-exporter -f charts/neo4j-exporter/ci/minimal-values.yaml \
+            | kubeconform -strict -summary -kubernetes-version 1.29.0 -schema-location default
+      - name: Render and validate (ci/full)
+        run: |
+          helm template foo charts/neo4j-exporter -f charts/neo4j-exporter/ci/full-values.yaml \
+            | kubeconform -strict -summary -kubernetes-version 1.29.0 -schema-location default
+
+  scenario-values:
+    # Catches drift between the chart and the user-facing scenario values shipped
+    # under examples/kubernetes/values/. If anyone changes a chart value name and
+    # forgets to update the scenarios, this job fails.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.1.3
+      - name: Install kubeconform
+        run: |
+          curl -sSL -o /tmp/kubeconform.tgz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kubeconform.tgz -C /usr/local/bin kubeconform
+
+      - name: lint + render basic
+        run: |
+          helm lint charts/neo4j-exporter -f examples/kubernetes/values/values-basic.yaml
+          helm template ne charts/neo4j-exporter -f examples/kubernetes/values/values-basic.yaml \
+            | kubeconform -strict -summary -kubernetes-version 1.29.0 -schema-location default
+
+      - name: lint + render existing-secret
+        run: |
+          helm lint charts/neo4j-exporter -f examples/kubernetes/values/values-existing-secret.yaml
+          helm template ne charts/neo4j-exporter -f examples/kubernetes/values/values-existing-secret.yaml \
+            | kubeconform -strict -summary -kubernetes-version 1.29.0 -schema-location default
+
+      - name: lint + render existing-secret + ha
+        run: |
+          helm lint charts/neo4j-exporter \
+            -f examples/kubernetes/values/values-existing-secret.yaml \
+            -f examples/kubernetes/values/values-ha.yaml
+          helm template ne charts/neo4j-exporter \
+            -f examples/kubernetes/values/values-existing-secret.yaml \
+            -f examples/kubernetes/values/values-ha.yaml \
+            | kubeconform -strict -summary -kubernetes-version 1.29.0 -schema-location default
+
+      - name: lint + render existing-secret + network-policy
+        run: |
+          helm lint charts/neo4j-exporter \
+            -f examples/kubernetes/values/values-existing-secret.yaml \
+            -f examples/kubernetes/values/values-network-policy.yaml
+          helm template ne charts/neo4j-exporter \
+            -f examples/kubernetes/values/values-existing-secret.yaml \
+            -f examples/kubernetes/values/values-network-policy.yaml \
+            | kubeconform -strict -summary -kubernetes-version 1.29.0 -schema-location default
+
+      - name: lint + render production combo (existing-secret + ha + network-policy)
+        run: |
+          helm lint charts/neo4j-exporter \
+            -f examples/kubernetes/values/values-existing-secret.yaml \
+            -f examples/kubernetes/values/values-ha.yaml \
+            -f examples/kubernetes/values/values-network-policy.yaml
+          helm template ne charts/neo4j-exporter \
+            -f examples/kubernetes/values/values-existing-secret.yaml \
+            -f examples/kubernetes/values/values-ha.yaml \
+            -f examples/kubernetes/values/values-network-policy.yaml \
+            | kubeconform -strict -summary -kubernetes-version 1.29.0 -schema-location default
+
+  ct-install:
+    # Real install on a kind cluster. Because the chart's default image
+    # (ghcr.io/i-harsha-reddy/neo4j-exporter:<appVersion>) may not exist yet on the
+    # registry until a release tag is cut, we build the image locally, load it
+    # into the kind node, and override image refs via ct's --helm-extra-set-args.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: 'stable'
+          cache: true
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.1.3
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2
+
+      - name: List changed charts
+        id: changes
+        run: |
+          changed=$(ct list-changed --target-branch "${{ github.event.repository.default_branch }}" --chart-dirs charts || true)
+          if [ -n "$changed" ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create kind cluster
+        if: steps.changes.outputs.any == 'true'
+        uses: helm/kind-action@v1
+        with:
+          version: v0.24.0
+          node_image: kindest/node:v1.29.4
+          cluster_name: chart-testing
+
+      - name: Build local image
+        if: steps.changes.outputs.any == 'true'
+        run: docker build -t neo4j-exporter:ci-test .
+
+      - name: Load image into kind
+        if: steps.changes.outputs.any == 'true'
+        run: kind load docker-image neo4j-exporter:ci-test --name chart-testing
+
+      - name: ct lint
+        if: steps.changes.outputs.any == 'true'
+        run: ct lint --target-branch "${{ github.event.repository.default_branch }}" --chart-dirs charts --validate-maintainers=false
+
+      - name: ct install
+        if: steps.changes.outputs.any == 'true'
+        run: |
+          ct install \
+            --target-branch "${{ github.event.repository.default_branch }}" \
+            --chart-dirs charts \
+            --helm-extra-set-args "--set=image.repository=neo4j-exporter --set=image.tag=ci-test --set=image.pullPolicy=IfNotPresent" \
+            --helm-extra-args="--timeout=300s"

@@ -1,0 +1,135 @@
+{
+  "uid": "neo4j-storage",
+  "title": "Neo4j — Storage",
+  "description": "Store byte breakdown, growth rate + 7-day forecast, ID usage, kernel identity. Schema/indexes/constraints have moved to the dedicated Schema dashboard.",
+  "tags": ["neo4j", "storage"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "30s",
+  "time": {"from": "now-24h", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "datasource", "type": "datasource", "query": "prometheus",
+       "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}},
+      {"name": "instance", "type": "query",
+       "datasource": {"type": "prometheus", "uid": "${datasource}"},
+       "query": "label_values(neo4j_up, instance)",
+       "multi": true, "includeAll": true,
+       "current": {"selected": true, "text": "All", "value": "$__all"},
+       "refresh": 2, "sort": 1}
+    ]
+  },
+  "panels": [
+    {"type": "row", "title": "Headline", "id": 100,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "collapsed": false},
+    {"id": 1, "type": "stat", "title": "Total store size",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_store_total_bytes{instance=~\"$instance\"})"}],
+     "fieldConfig": {"defaults": {"unit": "bytes"}},
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 2, "type": "stat", "title": "Growth (1h)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(deriv(neo4j_store_total_bytes{instance=~\"$instance\"}[1h]))"}],
+     "fieldConfig": {"defaults": {"unit": "Bps"}},
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 3, "type": "stat", "title": "Indexes total (drill →)",
+     "description": "Click to open the Schema dashboard for index detail.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_indexes_count{instance=~\"$instance\"})"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}},
+     "links": [{"title": "Schema dashboard", "url": "/d/neo4j-schema?var-instance=${instance}", "targetBlank": false}]},
+    {"id": 4, "type": "stat", "title": "Indexes failed",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_indexes_count{instance=~\"$instance\",state=\"FAILED\"}) OR vector(0)"}],
+     "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+       {"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+     "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"type": "row", "title": "Bytes breakdown", "id": 101,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}, "collapsed": false},
+    {"id": 5, "type": "timeseries", "title": "Store bytes by component (stacked)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 9, "w": 12, "x": 0, "y": 6},
+     "targets": [
+       {"refId": "A", "expr": "sum(neo4j_store_node_bytes{instance=~\"$instance\"})", "legendFormat": "node"},
+       {"refId": "B", "expr": "sum(neo4j_store_relationship_bytes{instance=~\"$instance\"})", "legendFormat": "relationship"},
+       {"refId": "C", "expr": "sum(neo4j_store_property_bytes{instance=~\"$instance\"})", "legendFormat": "property"},
+       {"refId": "D", "expr": "sum(neo4j_store_string_bytes{instance=~\"$instance\"})", "legendFormat": "string"},
+       {"refId": "E", "expr": "sum(neo4j_store_array_bytes{instance=~\"$instance\"})", "legendFormat": "array"},
+       {"refId": "F", "expr": "sum(neo4j_store_log_bytes{instance=~\"$instance\"})", "legendFormat": "log"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"stacking": {"mode": "normal"}, "fillOpacity": 30}}}},
+    {"id": 6, "type": "piechart", "title": "Current bytes by component",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 9, "w": 12, "x": 12, "y": 6},
+     "targets": [
+       {"refId": "A", "instant": true, "expr": "sum(neo4j_store_node_bytes{instance=~\"$instance\"})", "legendFormat": "node"},
+       {"refId": "B", "instant": true, "expr": "sum(neo4j_store_relationship_bytes{instance=~\"$instance\"})", "legendFormat": "relationship"},
+       {"refId": "C", "instant": true, "expr": "sum(neo4j_store_property_bytes{instance=~\"$instance\"})", "legendFormat": "property"},
+       {"refId": "D", "instant": true, "expr": "sum(neo4j_store_string_bytes{instance=~\"$instance\"})", "legendFormat": "string"},
+       {"refId": "E", "instant": true, "expr": "sum(neo4j_store_array_bytes{instance=~\"$instance\"})", "legendFormat": "array"},
+       {"refId": "F", "instant": true, "expr": "sum(neo4j_store_log_bytes{instance=~\"$instance\"})", "legendFormat": "log"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "bytes"}}},
+
+    {"type": "row", "title": "Growth & forecast", "id": 102,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 15}, "collapsed": false},
+    {"id": 7, "type": "timeseries", "title": "Store growth bytes/s (1h) + 7-day projection",
+     "description": "Left axis: bytes/sec (1h derivative). Right axis: predict_linear over 24h base, projected 7 days forward.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+     "targets": [
+       {"refId": "A", "expr": "deriv(neo4j_store_total_bytes{instance=~\"$instance\"}[1h])", "legendFormat": "growth bytes/s ({{instance}})"},
+       {"refId": "B", "expr": "predict_linear(neo4j_store_total_bytes{instance=~\"$instance\"}[24h], 7*86400)", "legendFormat": "predicted total in 7d ({{instance}})"}
+     ],
+     "fieldConfig": {
+       "defaults": {"unit": "Bps"},
+       "overrides": [
+         {"matcher": {"id": "byFrameRefID", "options": "B"},
+          "properties": [{"id": "unit", "value": "bytes"},
+                         {"id": "custom.axisPlacement", "value": "right"}]}
+       ]}},
+
+    {"type": "row", "title": "IDs", "id": 103,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 24}, "collapsed": false},
+    {"id": 8, "type": "timeseries", "title": "ID usage by kind",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 0, "y": 25},
+     "targets": [{"refId": "A", "expr": "neo4j_ids_in_use_total{instance=~\"$instance\"}", "legendFormat": "{{instance}} {{kind}}"}]},
+    {"id": 9, "type": "timeseries", "title": "ID growth rate by kind (1h)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 12, "y": 25},
+     "targets": [{"refId": "A", "expr": "deriv(neo4j_ids_in_use_total{instance=~\"$instance\"}[1h])", "legendFormat": "{{instance}} {{kind}} /s"}]},
+
+    {"type": "row", "title": "Kernel & store identity", "id": 104,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 33}, "collapsed": false},
+    {"id": 10, "type": "table", "title": "Kernel info (per instance)",
+     "description": "From apoc.monitor.kernel. store_id label contains a struct-shaped value with embedded curly braces — that's expected.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 24, "x": 0, "y": 34},
+     "targets": [
+       {"refId": "A", "instant": true, "format": "table", "expr": "neo4j_kernel_info{instance=~\"$instance\"}"},
+       {"refId": "B", "instant": true, "format": "table", "expr": "neo4j_kernel_start_timestamp_seconds{instance=~\"$instance\"} * 1000"},
+       {"refId": "C", "instant": true, "format": "table", "expr": "neo4j_kernel_store_creation_timestamp_seconds{instance=~\"$instance\"} * 1000"}
+     ],
+     "transformations": [
+       {"id": "merge"},
+       {"id": "organize", "options": {
+         "excludeByName": {"Time": true, "__name__": true, "job": true, "Value #A": true},
+         "renameByName": {"Value #B": "kernel started", "Value #C": "store created"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {},
+       "overrides": [
+         {"matcher": {"id": "byName", "options": "kernel started"},
+          "properties": [{"id": "unit", "value": "dateTimeFromNow"}]},
+         {"matcher": {"id": "byName", "options": "store created"},
+          "properties": [{"id": "unit", "value": "dateTimeFromNow"}]}
+       ]}}
+  ]
+}

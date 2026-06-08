@@ -1,0 +1,52 @@
+# values-ha.yaml — multi-replica with anti-affinity, zone spreading, and HPA.
+#
+# The exporter is stateless. Multiple replicas behind a Service is safe; Prometheus
+# scrapes hit one replica per scrape (the Service load-balances). The PodDisruptionBudget
+# auto-enables when replicaCount > 1 — no need to set it explicitly.
+#
+# Install:
+#   helm install neo4j-exporter oci://ghcr.io/i-harsha-reddy/charts/neo4j-exporter \
+#     --version 0.1.0 -n monitoring \
+#     -f examples/kubernetes/values/values-existing-secret.yaml \
+#     -f examples/kubernetes/values/values-ha.yaml
+
+replicaCount: 3
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits:   { cpu: 1000m, memory: 512Mi }
+
+priorityClassName: system-cluster-critical
+
+# Spread replicas across nodes (preferred — won't block scheduling on small clusters).
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: neo4j-exporter
+
+# Spread replicas across availability zones.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: neo4j-exporter
+
+# HPA — scales between 3 and 6 on CPU. Memory rarely matters for this exporter.
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+# PDB is auto-enabled because replicaCount > 1 (and again because autoscaling.enabled).
+# Override only if you have a reason:
+# podDisruptionBudget:
+#   enabled: true
+#   minAvailable: 2

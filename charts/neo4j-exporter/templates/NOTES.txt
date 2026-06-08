@@ -1,0 +1,55 @@
+neo4j-exporter has been installed.
+
+== Verify the deployment ==
+
+  kubectl --namespace {{ .Release.Namespace }} rollout status deploy/{{ include "neo4j-exporter.fullname" . }}
+  kubectl --namespace {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+== Probe a Neo4j target ==
+
+The exporter is reachable in-cluster at:
+  {{ include "neo4j-exporter.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+To run an ad-hoc probe (replace neo4j.svc:7687 with your target):
+  kubectl --namespace {{ .Release.Namespace }} run --rm -it probe \
+    --image=curlimages/curl --restart=Never -- \
+    'http://{{ include "neo4j-exporter.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}/probe?target=neo4j.svc:7687&module=default'
+
+Or port-forward and curl from your laptop:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "neo4j-exporter.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  curl -s 'http://localhost:{{ .Values.service.port }}/ready'
+  curl -s 'http://localhost:{{ .Values.service.port }}/metrics' | grep neo4j_exporter_build_info
+
+== Wire Prometheus ==
+
+Native Prometheus (no operator):
+  scrape_configs:
+    - job_name: neo4j
+      metrics_path: /probe
+      params: { module: [default] }
+      static_configs:
+        - targets: [neo4j-prod-1.svc:7687, neo4j-prod-2.svc:7687]
+      relabel_configs:
+        - source_labels: [__address__]
+          target_label: __param_target
+        - source_labels: [__param_target]
+          target_label: instance
+        - target_label: __address__
+          replacement: {{ include "neo4j-exporter.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+Prometheus Operator: copy the Probe + ServiceMonitor manifests from
+examples/kubernetes/servicemonitor.yaml in the source repo and adjust the
+prober.url to {{ include "neo4j-exporter.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}.
+
+== Smoke test the install ==
+
+  helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }}
+
+{{- if not .Values.auth.existingSecret }}
+
+== Heads up ==
+
+You provisioned credentials inline (auth.password / auth.jolokiaPassword). For
+production, prefer auth.existingSecret pointing at a pre-created Secret managed
+by your secrets pipeline (Vault, sealed-secrets, external-secrets, etc.).
+{{- end }}

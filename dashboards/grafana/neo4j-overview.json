@@ -1,0 +1,211 @@
+{
+  "uid": "neo4j-overview",
+  "title": "Neo4j — Overview",
+  "description": "Fleet-level health entry point. Answers \"who's unhealthy, who's about to be, where do I click next?\"",
+  "tags": ["neo4j", "overview", "fleet"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "30s",
+  "time": {"from": "now-3h", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "datasource", "type": "datasource", "query": "prometheus",
+       "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}, "hide": 0},
+      {"name": "instance", "type": "query",
+       "datasource": {"type": "prometheus", "uid": "${datasource}"},
+       "query": "label_values(neo4j_up, instance)",
+       "multi": true, "includeAll": true,
+       "current": {"selected": true, "text": "All", "value": "$__all"},
+       "refresh": 2, "sort": 1},
+      {"name": "job", "type": "query",
+       "datasource": {"type": "prometheus", "uid": "${datasource}"},
+       "query": "label_values(neo4j_up, job)",
+       "multi": false, "includeAll": false,
+       "current": {"selected": true, "text": "neo4j", "value": "neo4j"},
+       "refresh": 2}
+    ]
+  },
+  "panels": [
+    {"type": "row", "title": "Fleet status", "id": 100,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "collapsed": false},
+    {"id": 1, "type": "stat", "title": "Targets up",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_up{instance=~\"$instance\",job=~\"$job\"})"}],
+     "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+       {"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+     "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 2, "type": "stat", "title": "Targets down",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
+     "targets": [{"refId": "A", "expr": "count(neo4j_up{instance=~\"$instance\",job=~\"$job\"} == 0) OR vector(0)"}],
+     "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+       {"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+     "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 3, "type": "stat", "title": "Avg fleet heap %",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
+     "targets": [{"refId": "A", "expr": "avg((neo4j_jvm_heap_used_bytes{instance=~\"$instance\"} / neo4j_jvm_heap_max_bytes{instance=~\"$instance\"}))"}],
+     "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1,
+       "thresholds": {"mode": "absolute", "steps": [
+         {"color": "green", "value": null}, {"color": "yellow", "value": 0.75}, {"color": "red", "value": 0.9}]}}},
+     "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 4, "type": "stat", "title": "Aggregate commit rate",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(rate(neo4j_transactions_committed_count{instance=~\"$instance\"}[5m]))"}],
+     "fieldConfig": {"defaults": {"unit": "ops"}},
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"type": "row", "title": "Triage — sorted by recent downtime", "id": 101,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}, "collapsed": false},
+    {"id": 5, "type": "table", "title": "Per-instance triage (click instance to drill)",
+     "description": "Each row is one Neo4j instance. Click the instance name to jump to the transactions dashboard for that target.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 24, "x": 0, "y": 6},
+     "targets": [
+       {"refId": "A", "expr": "1 - avg_over_time(neo4j_up{instance=~\"$instance\",job=~\"$job\"}[5m])", "format": "table", "instant": true},
+       {"refId": "B", "expr": "(neo4j_jvm_heap_used_bytes{instance=~\"$instance\"} / neo4j_jvm_heap_max_bytes{instance=~\"$instance\"})", "format": "table", "instant": true},
+       {"refId": "C", "expr": "rate(neo4j_jvm_gc_seconds_total{instance=~\"$instance\"}[5m])", "format": "table", "instant": true},
+       {"refId": "D", "expr": "sum by (instance) (neo4j_transactions_active{instance=~\"$instance\"})", "format": "table", "instant": true},
+       {"refId": "E", "expr": "max by (instance) (neo4j_transactions_longest_active_seconds{instance=~\"$instance\"})", "format": "table", "instant": true},
+       {"refId": "F", "expr": "count by (instance) (neo4j_collector_success{instance=~\"$instance\"} == 0) OR on (instance) (0 * sum by (instance) (neo4j_up{instance=~\"$instance\"}))", "format": "table", "instant": true},
+       {"refId": "G", "expr": "neo4j_scrape_duration_seconds{instance=~\"$instance\",job=\"neo4j\"}", "format": "table", "instant": true}
+     ],
+     "transformations": [
+       {"id": "merge"},
+       {"id": "organize", "options": {
+         "excludeByName": {"Time": true, "__name__": true, "job": true},
+         "renameByName": {
+           "Value #A": "downtime ratio (5m)",
+           "Value #B": "heap %",
+           "Value #C": "gc %",
+           "Value #D": "active txns",
+           "Value #E": "longest tx (s)",
+           "Value #F": "failing collectors",
+           "Value #G": "scrape (s)"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {"custom": {"align": "auto"}},
+       "overrides": [
+         {"matcher": {"id": "byName", "options": "downtime ratio (5m)"}, "properties": [
+           {"id": "unit", "value": "percentunit"},
+           {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+             {"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.05}]}},
+           {"id": "custom.cellOptions", "value": {"type": "color-background"}}]},
+         {"matcher": {"id": "byName", "options": "heap %"}, "properties": [
+           {"id": "unit", "value": "percentunit"},
+           {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+             {"color": "green", "value": null}, {"color": "yellow", "value": 0.75}, {"color": "red", "value": 0.9}]}},
+           {"id": "custom.cellOptions", "value": {"type": "color-background"}}]},
+         {"matcher": {"id": "byName", "options": "gc %"}, "properties": [
+           {"id": "unit", "value": "percentunit"},
+           {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+             {"color": "green", "value": null}, {"color": "yellow", "value": 0.05}, {"color": "red", "value": 0.2}]}}]},
+         {"matcher": {"id": "byName", "options": "longest tx (s)"}, "properties": [
+           {"id": "unit", "value": "s"},
+           {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+             {"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 300}]}}]},
+         {"matcher": {"id": "byName", "options": "failing collectors"}, "properties": [
+           {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+             {"color": "green", "value": null}, {"color": "red", "value": 1}]}},
+           {"id": "custom.cellOptions", "value": {"type": "color-background"}}]},
+         {"matcher": {"id": "byName", "options": "scrape (s)"}, "properties": [
+           {"id": "unit", "value": "s"},
+           {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+             {"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 8}]}}]},
+         {"matcher": {"id": "byName", "options": "instance"}, "properties": [
+           {"id": "links", "value": [
+             {"title": "Open transactions dashboard for this instance",
+              "url": "/d/neo4j-transactions?var-instance=${__value.text}", "targetBlank": false}]}]}
+       ]
+     },
+     "options": {"sortBy": [{"displayName": "downtime ratio (5m)", "desc": true}]}},
+
+    {"type": "row", "title": "Availability & health", "id": 102,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14}, "collapsed": false},
+    {"id": 6, "type": "timeseries", "title": "neo4j_up by instance",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+     "targets": [{"refId": "A", "expr": "neo4j_up{instance=~\"$instance\",job=~\"$job\"}", "legendFormat": "{{instance}}"}],
+     "fieldConfig": {"defaults": {"min": 0, "max": 1, "custom": {"fillOpacity": 20}}}},
+    {"id": 7, "type": "state-timeline", "title": "Per-collector success (state timeline)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+     "targets": [{"refId": "A", "expr": "neo4j_collector_success{instance=~\"$instance\"}", "legendFormat": "{{instance}}/{{collector}}"}],
+     "fieldConfig": {"defaults": {"mappings": [
+       {"type": "value", "options": {"0": {"text": "fail", "color": "red", "index": 0},
+                                       "1": {"text": "ok", "color": "green", "index": 1}}}]}}},
+
+    {"type": "row", "title": "Workload pulse", "id": 103,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23}, "collapsed": false},
+    {"id": 8, "type": "timeseries", "title": "Commit rate per instance (top 10)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 8, "x": 0, "y": 24},
+     "targets": [{"refId": "A", "expr": "topk(10, sum by (instance) (rate(neo4j_transactions_committed_count{instance=~\"$instance\"}[5m])))", "legendFormat": "{{instance}}"}],
+     "fieldConfig": {"defaults": {"unit": "ops"}}},
+    {"id": 9, "type": "timeseries", "title": "Rollback ratio per instance (top 10)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 8, "x": 8, "y": 24},
+     "targets": [{"refId": "A", "expr": "topk(10, max by (instance) ((rate(neo4j_transactions_rolled_back_count{instance=~\"$instance\"}[5m]) / clamp_min(rate(neo4j_transactions_committed_count{instance=~\"$instance\"}[5m]) + rate(neo4j_transactions_rolled_back_count{instance=~\"$instance\"}[5m]), 0.001))))", "legendFormat": "{{instance}}"}],
+     "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"mode": "absolute", "steps": [
+       {"color": "green", "value": null}, {"color": "yellow", "value": 0.05}, {"color": "red", "value": 0.1}]}}}},
+    {"id": 10, "type": "timeseries", "title": "Active transactions per instance (top 10)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 8, "x": 16, "y": 24},
+     "targets": [{"refId": "A", "expr": "topk(10, sum by (instance) (neo4j_transactions_active{instance=~\"$instance\"}))", "legendFormat": "{{instance}}"}]},
+
+    {"type": "row", "title": "Saturation", "id": 104,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 31}, "collapsed": false},
+    {"id": 11, "type": "timeseries", "title": "Heap % (top 10)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 8, "x": 0, "y": 32},
+     "targets": [{"refId": "A", "expr": "topk(10, (neo4j_jvm_heap_used_bytes{instance=~\"$instance\"} / neo4j_jvm_heap_max_bytes{instance=~\"$instance\"}))", "legendFormat": "{{instance}}"}],
+     "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}}},
+    {"id": 12, "type": "timeseries", "title": "GC time ratio (top 10)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 8, "x": 8, "y": 32},
+     "targets": [{"refId": "A", "expr": "topk(10, sum by (instance) (rate(neo4j_jvm_gc_seconds_total{instance=~\"$instance\"}[5m])))", "legendFormat": "{{instance}}"}],
+     "fieldConfig": {"defaults": {"unit": "percentunit"}}},
+    {"id": 13, "type": "timeseries", "title": "Store growth (top 10)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 8, "x": 16, "y": 32},
+     "targets": [{"refId": "A", "expr": "topk(10, deriv(neo4j_store_total_bytes{instance=~\"$instance\"}[1h]))", "legendFormat": "{{instance}}"}],
+     "fieldConfig": {"defaults": {"unit": "Bps"}}},
+
+    {"type": "row", "title": "Identity & version drift", "id": 105,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 39}, "collapsed": false},
+    {"id": 14, "type": "stat", "title": "Distinct Neo4j versions in fleet",
+     "description": "Multiple versions in the fleet usually means a partial rollout. Cross-reference with the table below.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 6, "w": 6, "x": 0, "y": 40},
+     "targets": [{"refId": "A", "expr": "count(count by (version) (neo4j_neo4j_version_info{instance=~\"$instance\"}))"}],
+     "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+       {"color": "green", "value": null}, {"color": "yellow", "value": 2}, {"color": "red", "value": 3}]}}},
+     "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 15, "type": "table", "title": "Versions in fleet",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 6, "w": 18, "x": 6, "y": 40},
+     "targets": [{"refId": "A", "expr": "count by (version, edition) (neo4j_neo4j_version_info{instance=~\"$instance\"})", "format": "table", "instant": true}],
+     "transformations": [
+       {"id": "organize", "options": {
+         "excludeByName": {"Time": true, "__name__": true, "job": true},
+         "renameByName": {"Value": "instances"}}}
+     ]},
+
+    {"type": "row", "title": "Self-observability (exporter)", "id": 106,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 46}, "collapsed": false},
+    {"id": 16, "type": "timeseries", "title": "Probe duration per instance",
+     "description": "neo4j_scrape_duration_seconds. Approaches scrape_timeout (10s) → empty samples.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 12, "x": 0, "y": 47},
+     "targets": [{"refId": "A", "expr": "neo4j_scrape_duration_seconds{instance=~\"$instance\",job=\"neo4j\"}", "legendFormat": "{{instance}}"}],
+     "fieldConfig": {"defaults": {"unit": "s"}}},
+    {"id": 17, "type": "timeseries", "title": "Per-collector duration (top 8)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 12, "x": 12, "y": 47},
+     "targets": [{"refId": "A", "expr": "topk(8, neo4j_collector_duration_seconds{instance=~\"$instance\"})", "legendFormat": "{{instance}}/{{collector}}"}],
+     "fieldConfig": {"defaults": {"unit": "s"}}}
+  ]
+}

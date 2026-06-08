@@ -1,0 +1,152 @@
+# End-to-end stack:
+#   neo4j-a, neo4j-b   (Neo4j 5-CE + APOC Core + APOC Extended + Jolokia agent)
+#   neo4j-exporter
+#   prometheus         (with provisioned scrape + rules)
+#   grafana            (with provisioned datasource + dashboards)
+#   loadgen            (cypher-shell scheduler dispatching scenarios to both instances)
+#
+# Run: docker compose up -d --wait
+# Then: open http://localhost:3000 (grafana, anonymous Admin)
+#       open http://localhost:9090 (prometheus)
+#       curl 'http://localhost:9412/probe?target=neo4j-a:7687&module=default'
+#       curl 'http://localhost:9412/probe?target=neo4j-b:7687&module=default'
+
+services:
+  jolokia-init:
+    image: alpine:3.20
+    container_name: neo4j-exporter-demo-jolokia-init
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        apk add --no-cache curl >/dev/null 2>&1
+        if [ ! -f /shared/jolokia.jar ]; then
+          curl -fsSL -o /shared/jolokia.jar \
+            https://repo1.maven.org/maven2/org/jolokia/jolokia-agent-jvm/2.1.1/jolokia-agent-jvm-2.1.1-javaagent.jar
+        fi
+        echo "jolokia.jar ready at $$(stat -c %s /shared/jolokia.jar) bytes"
+    volumes:
+      - jolokia-data:/shared
+
+  neo4j-a:
+    image: neo4j:5-community
+    container_name: neo4j-exporter-demo-neo4j-a
+    environment:
+      NEO4J_AUTH: neo4j/dev_password_change_me
+      NEO4J_PLUGINS: '["apoc","apoc-extended"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+      NEO4J_server_jvm_additional: -javaagent:/jolokia/jolokia.jar=config=/conf/jolokia.properties
+    mem_limit: 2g
+    volumes:
+      - jolokia-data:/jolokia:ro
+      - ./neo4j/jolokia.properties:/conf/jolokia.properties:ro
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    depends_on:
+      jolokia-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 && cypher-shell -u neo4j -p dev_password_change_me 'RETURN 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
+
+  neo4j-b:
+    image: neo4j:5-community
+    container_name: neo4j-exporter-demo-neo4j-b
+    environment:
+      NEO4J_AUTH: neo4j/dev_password_change_me
+      NEO4J_PLUGINS: '["apoc","apoc-extended"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+      NEO4J_server_jvm_additional: -javaagent:/jolokia/jolokia.jar=config=/conf/jolokia.properties
+    mem_limit: 2g
+    volumes:
+      - jolokia-data:/jolokia:ro
+      - ./neo4j/jolokia.properties:/conf/jolokia.properties:ro
+    ports:
+      - "7475:7474"
+      - "7688:7687"
+    depends_on:
+      jolokia-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 && cypher-shell -u neo4j -p dev_password_change_me 'RETURN 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
+
+  neo4j-exporter:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: neo4j-exporter-demo-exporter
+    command:
+      - --config.file=/etc/neo4j-exporter/config.yml
+      - --web.listen-address=:9412
+      - --log.level=info
+    volumes:
+      - ./neo4j-exporter/config.yml:/etc/neo4j-exporter/config.yml:ro
+    ports:
+      - "9412:9412"
+    depends_on:
+      neo4j-a:
+        condition: service_healthy
+      neo4j-b:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: neo4j-exporter-demo-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - neo4j-exporter
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: neo4j-exporter-demo-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_LOG_LEVEL: warn
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../../dashboards/grafana:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  loadgen:
+    image: neo4j:5-community
+    container_name: neo4j-exporter-demo-loadgen
+    environment:
+      LOADGEN_TARGETS: a=neo4j-a:7687,b=neo4j-b:7687
+      LOADGEN_USERNAME: neo4j
+      LOADGEN_PASSWORD: dev_password_change_me
+      LOADGEN_LOG: info
+    entrypoint: ["bash", "/loadgen/run.sh"]
+    volumes:
+      - ./loadgen:/loadgen:ro
+    depends_on:
+      neo4j-a:
+        condition: service_healthy
+      neo4j-b:
+        condition: service_healthy
+
+volumes:
+  jolokia-data:

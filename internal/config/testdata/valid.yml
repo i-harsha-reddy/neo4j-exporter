@@ -1,0 +1,36 @@
+global:
+  default_module: default
+  scrape_timeout: 10s
+
+modules:
+  default:
+    timeout: 8s
+    collectors:
+      server: true
+      bolt: true
+      databases: true
+      transactions: true
+      apoc_kernel: auto
+      apoc_store: auto
+      apoc_tx: auto
+      apoc_ids: auto
+      apoc_meta: auto
+      indexes: true
+      constraints: true
+      jolokia: true
+    slow_query:
+      enabled: true
+      min_seconds: 5
+      top: 10
+      expose_query_text: false
+
+targets:
+  - name: local
+    address: localhost:7687
+    module: default
+    bolt:
+      scheme: neo4j
+      username: neo4j
+      password: testpw
+    jolokia:
+      url: http://localhost:8778/jolokia/

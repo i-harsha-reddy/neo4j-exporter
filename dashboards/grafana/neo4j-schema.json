@@ -1,0 +1,157 @@
+{
+  "uid": "neo4j-schema",
+  "title": "Neo4j — Schema & Capacity",
+  "description": "Indexes, constraints, schema cardinality (apoc.meta.stats), index usage analytics, ID forecast.",
+  "tags": ["neo4j", "schema", "capacity"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": {"from": "now-24h", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "datasource", "type": "datasource", "query": "prometheus",
+       "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}},
+      {"name": "instance", "type": "query",
+       "datasource": {"type": "prometheus", "uid": "${datasource}"},
+       "query": "label_values(neo4j_up, instance)",
+       "multi": true, "includeAll": true,
+       "current": {"selected": true, "text": "All", "value": "$__all"},
+       "refresh": 2, "sort": 1},
+      {"name": "database", "type": "query",
+       "datasource": {"type": "prometheus", "uid": "${datasource}"},
+       "query": "label_values(neo4j_indexes_count{instance=~\"$instance\"}, database)",
+       "multi": true, "includeAll": true,
+       "current": {"selected": true, "text": "All", "value": "$__all"},
+       "refresh": 2, "sort": 1}
+    ]
+  },
+  "panels": [
+    {"type": "row", "title": "Headline", "id": 100,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "collapsed": false},
+    {"id": 1, "type": "stat", "title": "Indexes total",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_indexes_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 2, "type": "stat", "title": "Indexes failed",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_indexes_count{instance=~\"$instance\",database=~\"$database\",state=\"FAILED\"}) OR vector(0)"}],
+     "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+       {"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+     "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 3, "type": "stat", "title": "Constraints total",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_constraints_count{instance=~\"$instance\",database=~\"$database\"}) OR vector(0)"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 4, "type": "stat", "title": "APOC Extended",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
+     "targets": [{"refId": "A", "expr": "min(neo4j_apoc_extended_available{instance=~\"$instance\"}) OR vector(0)"}],
+     "fieldConfig": {"defaults": {"mappings": [
+       {"type": "value", "options": {
+         "0": {"text": "missing", "color": "red", "index": 0},
+         "1": {"text": "available", "color": "green", "index": 1}}}]}},
+     "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"type": "row", "title": "Schema scale (apoc.meta.stats)", "id": 101,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}, "collapsed": false},
+    {"id": 5, "type": "stat", "title": "Total nodes",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 0, "y": 6},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_meta_node_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 6, "type": "stat", "title": "Total relationships",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 6, "y": 6},
+     "targets": [{"refId": "A", "expr": "sum(neo4j_meta_relationship_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 7, "type": "stat", "title": "Distinct labels",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 12, "y": 6},
+     "targets": [{"refId": "A", "expr": "max(neo4j_meta_label_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 8, "type": "stat", "title": "Distinct rel types",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 4, "w": 6, "x": 18, "y": 6},
+     "targets": [{"refId": "A", "expr": "max(neo4j_meta_relationship_type_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"type": "row", "title": "Index detail", "id": 102,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 10}, "collapsed": false},
+    {"id": 9, "type": "table", "title": "Indexes by state / type / entity",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 9, "w": 12, "x": 0, "y": 11},
+     "targets": [{"refId": "A", "instant": true, "format": "table", "expr": "neo4j_indexes_count{instance=~\"$instance\",database=~\"$database\"}"}],
+     "transformations": [
+       {"id": "organize", "options": {
+         "excludeByName": {"Time": true, "__name__": true, "job": true},
+         "renameByName": {"Value": "count"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {},
+       "overrides": [
+         {"matcher": {"id": "byValue", "options": {"value": "FAILED", "op": "regex", "reducer": "allIsZero"}},
+          "properties": [{"id": "custom.cellOptions", "value": {"type": "color-text"}}]}
+       ]}},
+    {"id": 10, "type": "timeseries", "title": "Index population %",
+     "description": "Only emitted while an index is POPULATING. Drop+create from the loadgen index_churn scenario will surface here briefly.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 9, "w": 12, "x": 12, "y": 11},
+     "targets": [{"refId": "A", "expr": "neo4j_index_population_percent{instance=~\"$instance\",database=~\"$database\"}", "legendFormat": "{{name}} ({{type}})"}],
+     "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}}},
+
+    {"type": "row", "title": "Index usage analytics", "id": 103,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 20}, "collapsed": false},
+    {"id": 11, "type": "timeseries", "title": "Top indexes by read rate",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 9, "w": 12, "x": 0, "y": 21},
+     "targets": [{"refId": "A", "expr": "topk(10, rate(neo4j_index_read_count{instance=~\"$instance\",database=~\"$database\"}[$__rate_interval]))", "legendFormat": "{{name}} ({{instance}})"}],
+     "fieldConfig": {"defaults": {"unit": "ops"}}},
+    {"id": 12, "type": "table", "title": "Coldest indexes (last read)",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 9, "w": 12, "x": 12, "y": 21},
+     "targets": [{"refId": "A", "instant": true, "format": "table", "expr": "bottomk(10, neo4j_index_last_read_timestamp_seconds{instance=~\"$instance\",database=~\"$database\"}) * 1000"}],
+     "transformations": [
+       {"id": "organize", "options": {
+         "excludeByName": {"Time": true, "__name__": true, "job": true},
+         "renameByName": {"Value": "last read"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {},
+       "overrides": [
+         {"matcher": {"id": "byName", "options": "last read"},
+          "properties": [{"id": "unit", "value": "dateTimeFromNow"}]}
+       ]}},
+
+    {"type": "row", "title": "Distribution & forecast", "id": 104,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 30}, "collapsed": false},
+    {"id": 13, "type": "barchart", "title": "Top labels by node count",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 9, "w": 8, "x": 0, "y": 31},
+     "targets": [{"refId": "A", "instant": true, "expr": "topk(15, neo4j_meta_label_node_count{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "{{label}}"}]},
+    {"id": 14, "type": "barchart", "title": "Top relationship types by count",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 9, "w": 8, "x": 8, "y": 31},
+     "targets": [{"refId": "A", "instant": true, "expr": "topk(15, neo4j_meta_relationship_type_count_by_type{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "{{relationship_type}}"}]},
+    {"id": 15, "type": "timeseries", "title": "ID growth forecast (90 days)",
+     "description": "predict_linear over 7d base, projected 90 days forward. Informational only — Neo4j 5+ block format makes ID exhaustion rarely actionable in practice.",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 9, "w": 8, "x": 16, "y": 31},
+     "targets": [{"refId": "A", "expr": "predict_linear(neo4j_ids_in_use_total{instance=~\"$instance\"}[7d], 90*86400)", "legendFormat": "{{instance}} {{kind}} in 90d"}]},
+
+    {"type": "row", "title": "Constraints", "id": 105,
+     "gridPos": {"h": 1, "w": 24, "x": 0, "y": 40}, "collapsed": false},
+    {"id": 16, "type": "table", "title": "Constraints by type / entity",
+     "datasource": {"type": "prometheus", "uid": "${datasource}"},
+     "gridPos": {"h": 7, "w": 24, "x": 0, "y": 41},
+     "targets": [{"refId": "A", "instant": true, "format": "table", "expr": "neo4j_constraints_count{instance=~\"$instance\",database=~\"$database\"}"}],
+     "transformations": [
+       {"id": "organize", "options": {
+         "excludeByName": {"Time": true, "__name__": true, "job": true},
+         "renameByName": {"Value": "count"}}}
+     ]}
+  ]
+}

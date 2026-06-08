@@ -1,0 +1,98 @@
+version: 2
+
+project_name: neo4j-exporter
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: neo4j-exporter
+    main: ./cmd/neo4j-exporter
+    binary: neo4j-exporter
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/i-harsha-reddy/neo4j-exporter/internal/version.Version={{.Version}}
+      - -X github.com/i-harsha-reddy/neo4j-exporter/internal/version.Revision={{.ShortCommit}}
+      - -X github.com/i-harsha-reddy/neo4j-exporter/internal/version.Branch={{.Branch}}
+      - -X github.com/i-harsha-reddy/neo4j-exporter/internal/version.BuildUser=goreleaser
+      - -X github.com/i-harsha-reddy/neo4j-exporter/internal/version.BuildDate={{.Date}}
+
+archives:
+  - id: default
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - LICENSE
+      - README.md
+      - config/neo4j-exporter.example.yml
+      - dashboards/grafana/*.json
+
+dockers:
+  - image_templates:
+      - 'ghcr.io/i-harsha-reddy/neo4j-exporter:{{ .Version }}-amd64'
+      - 'ghcr.io/i-harsha-reddy/neo4j-exporter:latest-amd64'
+    dockerfile: Dockerfile.release
+    use: buildx
+    goos: linux
+    goarch: amd64
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.source={{ .GitURL }}
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+  - image_templates:
+      - 'ghcr.io/i-harsha-reddy/neo4j-exporter:{{ .Version }}-arm64'
+      - 'ghcr.io/i-harsha-reddy/neo4j-exporter:latest-arm64'
+    dockerfile: Dockerfile.release
+    use: buildx
+    goos: linux
+    goarch: arm64
+    build_flag_templates:
+      - --platform=linux/arm64
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+
+docker_manifests:
+  - name_template: 'ghcr.io/i-harsha-reddy/neo4j-exporter:{{ .Version }}'
+    image_templates:
+      - 'ghcr.io/i-harsha-reddy/neo4j-exporter:{{ .Version }}-amd64'
+      - 'ghcr.io/i-harsha-reddy/neo4j-exporter:{{ .Version }}-arm64'
+  - name_template: 'ghcr.io/i-harsha-reddy/neo4j-exporter:latest'
+    image_templates:
+      - 'ghcr.io/i-harsha-reddy/neo4j-exporter:latest-amd64'
+      - 'ghcr.io/i-harsha-reddy/neo4j-exporter:latest-arm64'
+
+# Cosign keyless OIDC signing for the per-arch images and the multi-arch
+# manifest. Requires `id-token: write` on the workflow (already set in
+# .github/workflows/release.yml). Each block needs a unique `id` because
+# goreleaser doesn't allow duplicate `default` IDs.
+docker_signs:
+  - id: per-arch-images
+    artifacts: images
+    args: ["sign", "--yes", "${artifact}"]
+  - id: multi-arch-manifests
+    artifacts: manifests
+    args: ["sign", "--yes", "${artifact}"]
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: '{{ incpatch .Version }}-next'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'

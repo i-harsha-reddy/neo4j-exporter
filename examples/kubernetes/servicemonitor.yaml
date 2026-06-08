@@ -1,0 +1,40 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: neo4j-fleet
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: neo4j-exporter
+spec:
+  jobName: neo4j
+  interval: 30s
+  scrapeTimeout: 10s
+  module: default
+  prober:
+    url: neo4j-exporter.monitoring.svc:9412
+    path: /probe
+  targets:
+    staticConfig:
+      static:
+        - neo4j-prod-1.databases.svc:7687
+        - neo4j-prod-2.databases.svc:7687
+      relabelingConfigs:
+        - sourceLabels: [__param_target]
+          targetLabel: instance
+---
+# Self-metrics from the exporter itself.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: neo4j-exporter-self
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: neo4j-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neo4j-exporter
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
