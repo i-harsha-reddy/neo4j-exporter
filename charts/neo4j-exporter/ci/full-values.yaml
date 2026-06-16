@@ -136,9 +136,17 @@ config:
     - name: prod-1
       address: neo4j-prod-1.databases.svc:7687
       module: default
+      bolt:
+        scheme: neo4j
+        username: ${NEO4J_USER}
+        password_file: /etc/neo4j-exporter/secrets/password
     - name: prod-2
       address: neo4j-prod-2.databases.svc:7687
       module: default
+      bolt:
+        scheme: neo4j
+        username: ${NEO4J_USER}
+        password_file: /etc/neo4j-exporter/secrets/password
 
 commonLabels:
   environment: production
