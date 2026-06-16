@@ -37,6 +37,8 @@ annotations:
     - name: Container image
       url: https://github.com/i-harsha-reddy/neo4j-exporter/pkgs/container/neo4j-exporter
   artifacthub.io/changes: |
+    - kind: fixed
+      description: "Secret volume defaultMode rendered as 0o400 (invalid YAML 1.1), so the pod crash-looped on a 0644 secret; corrected to 0400. The chart now installs."
     - kind: changed
       description: Bump exporter appVersion to 0.1.1
     - kind: fixed

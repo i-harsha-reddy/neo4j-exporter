@@ -106,7 +106,10 @@ spec:
         - name: secrets
           secret:
             secretName: {{ include "neo4j-exporter.secretName" . }}
-            defaultMode: 0o400
+            # 0400 (YAML octal). NOT 0o400 (Go syntax) — YAML 1.1 parses that as
+            # a string, so K8s falls back to 0644 and the exporter's secret-mode
+            # validator rejects it. With fsGroup set, kubelet OR's this to 0440.
+            defaultMode: 0400
             items:
               - key: {{ .Values.auth.passwordKey | quote }}
                 path: password
