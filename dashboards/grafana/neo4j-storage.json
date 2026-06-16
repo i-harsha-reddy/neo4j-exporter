@@ -40,13 +40,14 @@
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
      "targets": [{"refId": "A", "expr": "sum(neo4j_indexes_count{instance=~\"$instance\"})"}],
+     "fieldConfig": {"defaults": {"unit": "short"}},
      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}},
      "links": [{"title": "Schema dashboard", "url": "/d/neo4j-schema?var-instance=${instance}", "targetBlank": false}]},
     {"id": 4, "type": "stat", "title": "Indexes failed",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
      "targets": [{"refId": "A", "expr": "sum(neo4j_indexes_count{instance=~\"$instance\",state=\"FAILED\"}) OR vector(0)"}],
-     "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+     "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [
        {"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
      "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
 
@@ -100,11 +101,13 @@
     {"id": 8, "type": "timeseries", "title": "ID usage by kind",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 25},
-     "targets": [{"refId": "A", "expr": "neo4j_ids_in_use_total{instance=~\"$instance\"}", "legendFormat": "{{instance}} {{kind}}"}]},
+     "targets": [{"refId": "A", "expr": "neo4j_ids_in_use_total{instance=~\"$instance\"}", "legendFormat": "{{instance}} {{kind}}"}],
+     "fieldConfig": {"defaults": {"unit": "short"}}},
     {"id": 9, "type": "timeseries", "title": "ID growth rate by kind (1h)",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 25},
-     "targets": [{"refId": "A", "expr": "deriv(neo4j_ids_in_use_total{instance=~\"$instance\"}[1h])", "legendFormat": "{{instance}} {{kind}} /s"}]},
+     "targets": [{"refId": "A", "expr": "deriv(neo4j_ids_in_use_total{instance=~\"$instance\"}[1h])", "legendFormat": "{{instance}} {{kind}} /s"}],
+     "fieldConfig": {"defaults": {"unit": "short"}}},
 
     {"type": "row", "title": "Kernel & store identity", "id": 104,
      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 33}, "collapsed": false},

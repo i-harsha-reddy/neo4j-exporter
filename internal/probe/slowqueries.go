@@ -13,6 +13,7 @@ import (
 
 	cfg "github.com/i-harsha-reddy/neo4j-exporter/internal/config"
 	"github.com/i-harsha-reddy/neo4j-exporter/internal/neo4jclient"
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 // SlowQueriesHandler serves /slow-queries?target=...&top=10&min_seconds=5
@@ -238,15 +239,19 @@ func numOf(v any) string {
 }
 
 func durSeconds(v any) float64 {
-	if v == nil {
-		return 0
-	}
-	if d, ok := v.(time.Duration); ok {
-		return d.Seconds()
-	}
-	// Driver returns Cypher duration as a custom type; fall back to numeric coerce.
 	switch x := v.(type) {
+	case nil:
+		return 0
+	case neo4j.Duration:
+		// SHOW TRANSACTIONS yields elapsedTime/cpuTime/waitTime as Cypher
+		// Durations; the v5 driver surfaces them as neo4j.Duration (NOT Go's
+		// time.Duration). Convert to total seconds — without this every
+		// elapsed-based slow-query panel read 0.
+		return float64(x.Months)*2629746 + float64(x.Days)*86400 + float64(x.Seconds) + float64(x.Nanos)/1e9
+	case time.Duration:
+		return x.Seconds()
 	case int64:
+		// Defensive: a numeric ms-since fallback if a future driver returns one.
 		return float64(x) / 1000.0
 	case float64:
 		if x > 1e9 {

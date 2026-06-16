@@ -10,7 +10,7 @@ exporter's dashboards have real signal during a `make compose-up` session.
 | `bootstrap.cypher` | once at startup | 3 UNIQUENESS constraints, 6 indexes (3 implicit + 3 explicit), 50k Account, 5k Person, 50k KNOWS rels, 10 `:HotSpot` ids |
 | `hot_writes.cypher` | `LOADGEN_RATE_HOT_WRITES` (default 4s) | continuous trickle of `MATCH ... SET balance = ...` against random accounts |
 | `contention.cypher` | `LOADGEN_CONTENTION_S` (default 5s), 4× concurrent | hammers the 10 `:HotSpot` accounts → `neo4j_transactions_active_wait_seconds` and `_active_lock_count` move |
-| `slow_traversals.cypher` | `LOADGEN_SLOW_INTERVAL_S` (default 30s) | variable-length `KNOWS*1..6` path + capped cartesian → `/slow-queries` populated |
+| `slow_traversals.cypher` | `LOADGEN_SLOW_INTERVAL_S` (default 5s) | two `apoc.util.sleep` queries (~14s + ~6s) that stay in-flight across scrapes → `/slow-queries` populated; the 14s one crosses 10s elapsed to drive the dashboard's backlog panel |
 | `index_churn.cypher` | `LOADGEN_INDEX_CHURN_S` (default 90s) | drops + recreates `account_balance` → `neo4j_index_population_percent` emits during the population window |
 | `rollbacks.cypher` | `LOADGEN_ROLLBACK_S` (default 20s) | `CREATE` violating `account_id_unique` → `neo4j_transactions_rolled_back_count` strictly grows |
 | `apoc_batch.cypher` | `LOADGEN_APOC_BATCH_S` (default 60s) | `apoc.periodic.iterate` 200k creates + sweep delete → `neo4j_jvm_gc_count_total` moves |
@@ -28,7 +28,7 @@ and use only CE-compatible constraint syntax (`IS UNIQUE`, including composite).
 | `LOADGEN_PASSWORD` | `dev_password_change_me` | shared bolt password |
 | `LOADGEN_RATE_HOT_WRITES` | `4` | hot_writes cadence in seconds |
 | `LOADGEN_CONTENTION_S` | `5` | contention cadence in seconds |
-| `LOADGEN_SLOW_INTERVAL_S` | `30` | slow-traversal cadence |
+| `LOADGEN_SLOW_INTERVAL_S` | `5` | slow-traversal cadence (kept short so a slow query is almost always in-flight at scrape time) |
 | `LOADGEN_INDEX_CHURN_S` | `90` | index drop+recreate cadence |
 | `LOADGEN_APOC_BATCH_S` | `60` | apoc.periodic.iterate cadence |
 | `LOADGEN_ROLLBACK_S` | `20` | constraint-violation cadence |
