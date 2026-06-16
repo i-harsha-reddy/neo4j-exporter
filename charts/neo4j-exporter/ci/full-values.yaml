@@ -94,8 +94,11 @@ auth:
   password: "ci-test-password"
   jolokiaPassword: "ci-test-jolokia-password"
 
-extraArgs:
-  - --web.read-timeout=15s
+# (extraArgs intentionally unset: the exporter only accepts config.file,
+# web.listen-address, log.level, config.allow-insecure-secret-files — there is
+# no spare valid flag to demonstrate here without weakening security, and an
+# invalid flag makes the exporter exit 2. extraArgs rendering is covered by the
+# helm-template lint-and-validate job.)
 extraEnv:
   - name: GOMAXPROCS
     value: "2"
