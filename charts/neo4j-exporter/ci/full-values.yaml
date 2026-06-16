@@ -13,8 +13,8 @@ podLabels:
   team: data-platform
 
 resources:
-  requests: { cpu: 100m, memory: 128Mi }
-  limits:   { cpu: 1000m, memory: 512Mi }
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: 1000m, memory: 512Mi}
 
 nodeSelector:
   kubernetes.io/os: linux
@@ -117,7 +117,7 @@ config:
         apoc_ids: auto
         apoc_meta: auto
         jolokia: true
-      slow_query: { enabled: true, min_seconds: 5, top: 10, expose_query_text: false }
+      slow_query: {enabled: true, min_seconds: 5, top: 10, expose_query_text: false}
   default_target:
     module: default
     bolt:
