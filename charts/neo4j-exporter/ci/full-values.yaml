@@ -84,12 +84,15 @@ networkPolicy:
         - protocol: TCP
           port: 53
 
-# Use existingSecret to verify the chart-rendered Secret is suppressed.
+# Inline auth so `ct install` can actually start the pod on a kind cluster
+# (an existingSecret would have to be pre-created in ct's random per-release
+# namespace, which isn't feasible). The existingSecret render path — that the
+# chart suppresses its own Secret — is covered by the lint-and-validate job's
+# `helm template -f examples/kubernetes/values/values-existing-secret.yaml`.
 auth:
-  existingSecret: pre-created-creds
-  passwordKey: bolt-password
-  jolokiaPasswordKey: jolokia-password
   username: monitor
+  password: "ci-test-password"
+  jolokiaPassword: "ci-test-jolokia-password"
 
 extraArgs:
   - --web.read-timeout=15s
