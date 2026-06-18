@@ -6,8 +6,8 @@ description: |
   to fill the gap left by Neo4j CE having no native Prometheus endpoint.
   Multi-target probe pattern (one exporter, many Neo4j instances).
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.1.1
+appVersion: "0.1.1"
 kubeVersion: ">=1.25.0-0"
 
 home: https://github.com/i-harsha-reddy/neo4j-exporter
@@ -37,5 +37,9 @@ annotations:
     - name: Container image
       url: https://github.com/i-harsha-reddy/neo4j-exporter/pkgs/container/neo4j-exporter
   artifacthub.io/changes: |
-    - kind: added
-      description: Initial release of the Helm chart
+    - kind: fixed
+      description: "Secret volume defaultMode rendered as 0o400 (invalid YAML 1.1), so the pod crash-looped on a 0644 secret; corrected to 0400. The chart now installs."
+    - kind: changed
+      description: Bump exporter appVersion to 0.1.1
+    - kind: fixed
+      description: "Exporter 0.1.1 fixes Cypher Duration metrics that previously read 0 (transaction and slow-query elapsed/cpu/wait times)"

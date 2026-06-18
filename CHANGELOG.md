@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-06-16
+
+Bug-fix release addressing user-reported dashboard issues — including a latent metric-coercion bug that silently zeroed every elapsed-time metric.
+
+### Fixed
+
+- **Helm chart could not install.** The exporter Pod's Secret volume rendered `defaultMode: 0o400` (Go octal literal), which YAML 1.1 does not parse as a number — so Kubernetes fell back to mode `0644` and the exporter's secret-file-mode validator rejected the world-readable secret, crash-looping the Pod. Corrected to `0400` (the kubelet OR's it to `0440` under the chart's `fsGroup`, which the validator accepts). The chart-testing `ct install` job now exercises a real install on kind, so this is covered going forward.
+- **Cypher `Duration` metrics read `0`.** `SHOW TRANSACTIONS` yields `elapsedTime` / `cpuTime` / `waitTime` / `idleTime` as Cypher Durations, which the v5 Go driver surfaces as `neo4j.Duration` — **not** Go's `time.Duration`. Both coercion helpers (`asFloat64` in `internal/collector/coerce.go`, `durSeconds` in `internal/probe/slowqueries.go`) fell through to `0`, silently zeroing `neo4j_transactions_longest_active_seconds`, `neo4j_transactions_active_{cpu,wait,idle}_seconds`, and every `neo4j_slow_query_{elapsed,cpu,wait}_seconds`. Added explicit `neo4j.Duration` → seconds conversion with regression tests (`coerce_test.go`, `slowqueries_test.go`). This was the root cause of the Slow Queries dashboard appearing empty — its in-flight count, max-elapsed, and `>10s` backlog panels all key off elapsed time.
+- **Overview → "Probe duration per instance" panel was empty.** The panel and the per-instance triage table hard-coded `job="neo4j"` instead of the dashboard's `$job` template variable, so they returned nothing for any Prometheus job name other than literally `neo4j`. Both now use `job=~"$job"`.
+- **Dashboards rendered raw, unformatted large numbers.** Added Grafana units to ~30 count / rate panels across all six dashboards — `short` (SI suffixes, e.g. `8.5 Mil`, `655 K`) for node / relationship / ID / txid / page-fault / thread counts, `ops` for rate panels. Byte panels were already correct and are unchanged.
+
+### Changed
+
+- **Slow Queries dashboard.** Renders the point-in-time snapshot as points / bars so single samples are visible, adds a "live snapshot — empty is healthy" banner explaining that Neo4j CE cannot replay finished queries, and applies the unit fixes above.
+- **Demo stack realism.** Lowered the `neo4j-slow-queries` Prometheus scrape interval (30s → 15s) and retuned the `slow_traversals` loadgen scenario (longer queries, 5s cadence) so a slow query is reliably in-flight at scrape time and crosses the 10s mark that drives the backlog panel.
+
 ## [0.1.0] — 2026-06-08
 
 Initial release. Single-binary Prometheus exporter for **Neo4j Community Edition 5.x / 2025.x**, verified end-to-end against `neo4j:5-community` + APOC Core + APOC Extended + Jolokia 2.1.1 + Prometheus v2.55 + Grafana 11.3 via `bash scripts/e2e.sh` (17 hard-fail assertions across two Neo4j instances plus fleet-level Prometheus checks).
@@ -52,4 +68,5 @@ Initial release. Single-binary Prometheus exporter for **Neo4j Community Edition
 - PII guard: `/slow-queries` always emits `query_hash`; query-text exposure is opt-in via `slow_query.expose_query_text: true`.
 - The exporter does **not** synthesize Enterprise-only metrics (page cache hit ratio, query runtime breakdown, checkpoints, cluster, per-database CPU). See [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md).
 
+[0.1.1]: https://github.com/i-harsha-reddy/neo4j-exporter/releases/tag/0.1.1
 [0.1.0]: https://github.com/i-harsha-reddy/neo4j-exporter/releases/tag/0.1.0

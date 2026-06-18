@@ -128,8 +128,8 @@ func (TransactionsCollector) Collect(ctx context.Context, p *ProbeContext) error
 		ag.locks += asFloat64(r["locks"])
 	}
 	for db, ag := range perDB {
-		// elapsedTime / cpuTime / etc. come back as Duration which the driver
-		// surfaces as time.Duration; asFloat64 already returns seconds.
+		// elapsedTime / cpuTime / etc. come back as a Cypher Duration which the
+		// v5 driver surfaces as neo4j.Duration; asFloat64 converts to seconds.
 		longest.WithLabelValues(db).Set(ag.longest)
 		cpu.WithLabelValues(db).Set(ag.cpu)
 		wait.WithLabelValues(db).Set(ag.wait)

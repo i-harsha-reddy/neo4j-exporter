@@ -13,8 +13,8 @@ podLabels:
   team: data-platform
 
 resources:
-  requests: { cpu: 100m, memory: 128Mi }
-  limits:   { cpu: 1000m, memory: 512Mi }
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: 1000m, memory: 512Mi}
 
 nodeSelector:
   kubernetes.io/os: linux
@@ -84,15 +84,21 @@ networkPolicy:
         - protocol: TCP
           port: 53
 
-# Use existingSecret to verify the chart-rendered Secret is suppressed.
+# Inline auth so `ct install` can actually start the pod on a kind cluster
+# (an existingSecret would have to be pre-created in ct's random per-release
+# namespace, which isn't feasible). The existingSecret render path — that the
+# chart suppresses its own Secret — is covered by the lint-and-validate job's
+# `helm template -f examples/kubernetes/values/values-existing-secret.yaml`.
 auth:
-  existingSecret: pre-created-creds
-  passwordKey: bolt-password
-  jolokiaPasswordKey: jolokia-password
   username: monitor
+  password: "ci-test-password"
+  jolokiaPassword: "ci-test-jolokia-password"
 
-extraArgs:
-  - --web.read-timeout=15s
+# (extraArgs intentionally unset: the exporter only accepts config.file,
+# web.listen-address, log.level, config.allow-insecure-secret-files — there is
+# no spare valid flag to demonstrate here without weakening security, and an
+# invalid flag makes the exporter exit 2. extraArgs rendering is covered by the
+# helm-template lint-and-validate job.)
 extraEnv:
   - name: GOMAXPROCS
     value: "2"
@@ -117,7 +123,7 @@ config:
         apoc_ids: auto
         apoc_meta: auto
         jolokia: true
-      slow_query: { enabled: true, min_seconds: 5, top: 10, expose_query_text: false }
+      slow_query: {enabled: true, min_seconds: 5, top: 10, expose_query_text: false}
   default_target:
     module: default
     bolt:
@@ -133,9 +139,17 @@ config:
     - name: prod-1
       address: neo4j-prod-1.databases.svc:7687
       module: default
+      bolt:
+        scheme: neo4j
+        username: ${NEO4J_USER}
+        password_file: /etc/neo4j-exporter/secrets/password
     - name: prod-2
       address: neo4j-prod-2.databases.svc:7687
       module: default
+      bolt:
+        scheme: neo4j
+        username: ${NEO4J_USER}
+        password_file: /etc/neo4j-exporter/secrets/password
 
 commonLabels:
   environment: production

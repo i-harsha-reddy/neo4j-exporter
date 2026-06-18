@@ -160,7 +160,7 @@ for i in "${!INSTANCES[@]}"; do
   SLOW_FOUND[$i]=0
   ( cd "$COMPOSE_DIR" && docker compose exec -T loadgen bash /loadgen/run.sh --once slow_traversals "${INSTANCES[$i]}" >/dev/null 2>&1 ) &
 done
-# slow_traversals takes ~5s per instance; poll /slow-queries while in-flight
+# slow_traversals takes ~20s per instance (14s + 6s sleeps); poll /slow-queries while in-flight
 for n in $(seq 1 10); do
   all_found=1
   for i in "${!INSTANCES[@]}"; do

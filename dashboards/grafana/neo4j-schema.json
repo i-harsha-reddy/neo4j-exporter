@@ -33,18 +33,20 @@
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
      "targets": [{"refId": "A", "expr": "sum(neo4j_indexes_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "fieldConfig": {"defaults": {"unit": "short"}},
      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
     {"id": 2, "type": "stat", "title": "Indexes failed",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
      "targets": [{"refId": "A", "expr": "sum(neo4j_indexes_count{instance=~\"$instance\",database=~\"$database\",state=\"FAILED\"}) OR vector(0)"}],
-     "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+     "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [
        {"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
      "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
     {"id": 3, "type": "stat", "title": "Constraints total",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
      "targets": [{"refId": "A", "expr": "sum(neo4j_constraints_count{instance=~\"$instance\",database=~\"$database\"}) OR vector(0)"}],
+     "fieldConfig": {"defaults": {"unit": "short"}},
      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
     {"id": 4, "type": "stat", "title": "APOC Extended",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -62,21 +64,25 @@
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 6},
      "targets": [{"refId": "A", "expr": "sum(neo4j_meta_node_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "fieldConfig": {"defaults": {"unit": "short"}},
      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
     {"id": 6, "type": "stat", "title": "Total relationships",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 6},
      "targets": [{"refId": "A", "expr": "sum(neo4j_meta_relationship_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "fieldConfig": {"defaults": {"unit": "short"}},
      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
     {"id": 7, "type": "stat", "title": "Distinct labels",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 6},
      "targets": [{"refId": "A", "expr": "max(neo4j_meta_label_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "fieldConfig": {"defaults": {"unit": "short"}},
      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
     {"id": 8, "type": "stat", "title": "Distinct rel types",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 6},
      "targets": [{"refId": "A", "expr": "max(neo4j_meta_relationship_type_count{instance=~\"$instance\",database=~\"$database\"})"}],
+     "fieldConfig": {"defaults": {"unit": "short"}},
      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
 
     {"type": "row", "title": "Index detail", "id": 102,
@@ -93,6 +99,7 @@
      "fieldConfig": {
        "defaults": {},
        "overrides": [
+         {"matcher": {"id": "byName", "options": "count"}, "properties": [{"id": "unit", "value": "short"}]},
          {"matcher": {"id": "byValue", "options": {"value": "FAILED", "op": "regex", "reducer": "allIsZero"}},
           "properties": [{"id": "custom.cellOptions", "value": {"type": "color-text"}}]}
        ]}},
@@ -131,16 +138,19 @@
     {"id": 13, "type": "barchart", "title": "Top labels by node count",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 9, "w": 8, "x": 0, "y": 31},
-     "targets": [{"refId": "A", "instant": true, "expr": "topk(15, neo4j_meta_label_node_count{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "{{label}}"}]},
+     "targets": [{"refId": "A", "instant": true, "expr": "topk(15, neo4j_meta_label_node_count{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "{{label}}"}],
+     "fieldConfig": {"defaults": {"unit": "short"}}},
     {"id": 14, "type": "barchart", "title": "Top relationship types by count",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 9, "w": 8, "x": 8, "y": 31},
-     "targets": [{"refId": "A", "instant": true, "expr": "topk(15, neo4j_meta_relationship_type_count_by_type{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "{{relationship_type}}"}]},
+     "targets": [{"refId": "A", "instant": true, "expr": "topk(15, neo4j_meta_relationship_type_count_by_type{instance=~\"$instance\",database=~\"$database\"})", "legendFormat": "{{relationship_type}}"}],
+     "fieldConfig": {"defaults": {"unit": "short"}}},
     {"id": 15, "type": "timeseries", "title": "ID growth forecast (90 days)",
      "description": "predict_linear over 7d base, projected 90 days forward. Informational only — Neo4j 5+ block format makes ID exhaustion rarely actionable in practice.",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 9, "w": 8, "x": 16, "y": 31},
-     "targets": [{"refId": "A", "expr": "predict_linear(neo4j_ids_in_use_total{instance=~\"$instance\"}[7d], 90*86400)", "legendFormat": "{{instance}} {{kind}} in 90d"}]},
+     "targets": [{"refId": "A", "expr": "predict_linear(neo4j_ids_in_use_total{instance=~\"$instance\"}[7d], 90*86400)", "legendFormat": "{{instance}} {{kind}} in 90d"}],
+     "fieldConfig": {"defaults": {"unit": "short"}}},
 
     {"type": "row", "title": "Constraints", "id": 105,
      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 40}, "collapsed": false},
@@ -152,6 +162,9 @@
        {"id": "organize", "options": {
          "excludeByName": {"Time": true, "__name__": true, "job": true},
          "renameByName": {"Value": "count"}}}
-     ]}
+     ],
+     "fieldConfig": {"defaults": {},
+       "overrides": [
+         {"matcher": {"id": "byName", "options": "count"}, "properties": [{"id": "unit", "value": "short"}]}]}}
   ]
 }

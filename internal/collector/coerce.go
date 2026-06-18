@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 // asFloat64 coerces a Cypher result value to float64. Used by collectors
@@ -36,6 +38,12 @@ func asFloat64(v any) float64 {
 		return 0
 	case time.Duration:
 		return x.Seconds()
+	case neo4j.Duration:
+		// Cypher Duration (elapsedTime/cpuTime/waitTime/idleTime from SHOW
+		// TRANSACTIONS) — the v5 driver surfaces it as neo4j.Duration, NOT Go's
+		// time.Duration. Convert to total seconds. Months never occur for the
+		// sub-day timings we read; use Neo4j's average-month seconds for safety.
+		return float64(x.Months)*2629746 + float64(x.Days)*86400 + float64(x.Seconds) + float64(x.Nanos)/1e9
 	case string:
 		f, _ := strconv.ParseFloat(strings.TrimSpace(x), 64)
 		return f

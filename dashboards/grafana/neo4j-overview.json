@@ -71,7 +71,7 @@
        {"refId": "D", "expr": "sum by (instance) (neo4j_transactions_active{instance=~\"$instance\"})", "format": "table", "instant": true},
        {"refId": "E", "expr": "max by (instance) (neo4j_transactions_longest_active_seconds{instance=~\"$instance\"})", "format": "table", "instant": true},
        {"refId": "F", "expr": "count by (instance) (neo4j_collector_success{instance=~\"$instance\"} == 0) OR on (instance) (0 * sum by (instance) (neo4j_up{instance=~\"$instance\"}))", "format": "table", "instant": true},
-       {"refId": "G", "expr": "neo4j_scrape_duration_seconds{instance=~\"$instance\",job=\"neo4j\"}", "format": "table", "instant": true}
+       {"refId": "G", "expr": "neo4j_scrape_duration_seconds{instance=~\"$instance\",job=~\"$job\"}", "format": "table", "instant": true}
      ],
      "transformations": [
        {"id": "merge"},
@@ -154,7 +154,8 @@
     {"id": 10, "type": "timeseries", "title": "Active transactions per instance (top 10)",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 24},
-     "targets": [{"refId": "A", "expr": "topk(10, sum by (instance) (neo4j_transactions_active{instance=~\"$instance\"}))", "legendFormat": "{{instance}}"}]},
+     "targets": [{"refId": "A", "expr": "topk(10, sum by (instance) (neo4j_transactions_active{instance=~\"$instance\"}))", "legendFormat": "{{instance}}"}],
+     "fieldConfig": {"defaults": {"unit": "short"}}},
 
     {"type": "row", "title": "Saturation", "id": 104,
      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 31}, "collapsed": false},
@@ -200,7 +201,7 @@
      "description": "neo4j_scrape_duration_seconds. Approaches scrape_timeout (10s) → empty samples.",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 47},
-     "targets": [{"refId": "A", "expr": "neo4j_scrape_duration_seconds{instance=~\"$instance\",job=\"neo4j\"}", "legendFormat": "{{instance}}"}],
+     "targets": [{"refId": "A", "expr": "neo4j_scrape_duration_seconds{instance=~\"$instance\",job=~\"$job\"}", "legendFormat": "{{instance}}"}],
      "fieldConfig": {"defaults": {"unit": "s"}}},
     {"id": 17, "type": "timeseries", "title": "Per-collector duration (top 8)",
      "datasource": {"type": "prometheus", "uid": "${datasource}"},
